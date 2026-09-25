@@ -140,6 +140,11 @@ export function gradeAnswer(question, choice) {
   return question.options.includes(choice) && choice === question.answer;
 }
 
+export function answerProgress(question, choice, alreadyAnswered) {
+  const correct = gradeAnswer(question, choice);
+  return { correct, awardStar: correct && !alreadyAnswered };
+}
+
 function loadSaved() {
   const fallback = { stars: 0, completedStages: [], outfit: "flower", scene: "room", soundOn: true };
   try {
@@ -160,8 +165,9 @@ function loadSaved() {
 
 const state = typeof document === "undefined" ? null : loadSaved();
 const session = { view: "home", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, feedback: "" };
+const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
 const audio = typeof document === "undefined" ? null : {
-  music: new Audio(`${AUDIO}music.mp3`), voice: new Audio(), effect: new Audio(),
+  music: new Audio(`${AUDIO}music-variety.mp3?v=3`), voice: new Audio(), effect: new Audio(),
 };
 if (audio) {
   audio.music.loop = true;
@@ -188,7 +194,7 @@ function playClip(player, file, onended) {
   if (!state.soundOn) return;
   player.pause();
   player.onended = onended || null;
-  player.src = `${AUDIO}${file}.mp3?v=2`;
+  player.src = `${AUDIO}${file}.mp3?v=3`;
   player.currentTime = 0;
   player.play().then(() => { document.querySelector("#audio-status").hidden = true; }).catch(error => {
     audioFailure(error);
@@ -315,10 +321,10 @@ function renderGame() {
     const label = artId ? OBJECTS[choice] : choice;
     const picture = artId ? art(artId, "choice-art", true) : "";
     const response = session.answered && choice === question.answer ? "correct" : session.wrongChoice === choice ? "wrong" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${response}" type="button" data-action="answer" data-value="${choice}" ${session.answered ? "disabled" : ""} aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
+    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
   }).join("");
   const feedback = session.feedback
-    ? `<p class="feedback-message ${session.answered ? "good" : ""}" role="status">${session.feedback}</p>`
+    ? `<p class="feedback-message ${session.answered && session.wrongChoice === null ? "good" : ""}" role="status">${session.feedback}</p>`
     : `<p class="feedback-message" role="status">${question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!"}</p>`;
   return `<section class="game-screen" aria-label="${subject.title}">
     <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.level + 1}단계 · ${LEVELS[session.subject][session.level]}</span></div>${renderSteps()}</div>
@@ -393,21 +399,25 @@ function start(level) {
 }
 
 function answer(value) {
-  if (session.view !== "game" || session.answered) return;
+  if (session.view !== "game") return;
   const question = currentQuestion();
   const choice = typeof question.answer === "number" ? Number(value) : value;
-  if (gradeAnswer(question, choice)) {
+  const { correct, awardStar } = answerProgress(question, choice, session.answered);
+  if (correct) {
     session.answered = true;
     session.wrongChoice = null;
-    session.feedback = "정답이야! 별 하나 반짝! ✨";
-    state.stars += 1;
-    save();
-    playClip(audio.effect, "applause");
+    session.feedback = "정답이야! 다른 것도 눌러봐 ✨";
+    if (awardStar) {
+      state.stars += 1;
+      save();
+      playClip(audio.effect, CORRECT_EFFECTS[(session.level * ROUND_SIZE + session.index) % CORRECT_EFFECTS.length]);
+    }
     if (session.subject === "english") playEnglishChoice(choice, () => playClip(audio.voice, "praise"));
     else playClip(audio.voice, "praise");
   } else {
     session.wrongChoice = choice;
     session.feedback = "괜찮아! 다시 한번 찾아보자.";
+    playClip(audio.effect, "try-again");
     if (session.subject === "english") playEnglishChoice(choice);
     else playClip(audio.voice, "retry");
   }
@@ -422,6 +432,7 @@ function next() {
     if (!state.completedStages.includes(stageId)) state.completedStages.push(stageId);
     save();
     go("result");
+    playClip(audio.effect, "level-up");
     playClip(audio.voice, "complete");
     return;
   }
@@ -457,10 +468,10 @@ if (typeof document !== "undefined") {
       case "replay": start(session.level); break;
       case "speak-question": playQuestion(); break;
       case "outfit":
-        if (OUTFITS.some(item => item.id === button.dataset.value)) { state.outfit = button.dataset.value; save(); render(); }
+        if (OUTFITS.some(item => item.id === button.dataset.value)) { state.outfit = button.dataset.value; save(); render(); playClip(audio.effect, "dress-up"); }
         break;
       case "scene":
-        if (SCENES.some(item => item.id === button.dataset.value)) { state.scene = button.dataset.value; save(); render(); }
+        if (SCENES.some(item => item.id === button.dataset.value)) { state.scene = button.dataset.value; save(); render(); playClip(audio.effect, "dress-up"); }
         break;
     }
   });

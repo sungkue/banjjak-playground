@@ -185,8 +185,7 @@ img { display: block; max-width: 100%; }
 .speak-button svg { width: 100%; height: 100%; fill: currentColor; }
 .choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .choice-card { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-width: 0; height: clamp(250px, 36vh, 365px); padding: 15px 12px; border: 4px solid rgba(255,255,255,.9); border-radius: 34px; box-shadow: var(--shadow); color: var(--ink); transition: transform .15s ease, filter .15s ease; }
-.choice-card:hover:not(:disabled) { transform: translateY(-5px); }
-.choice-card:disabled { cursor: default; }
+.choice-card:hover { transform: translateY(-5px); }
 .choice-card:nth-child(3n+1) { background: #ffd0da; }
 .choice-card:nth-child(3n+2) { background: #c8e8ff; }
 .choice-card:nth-child(3n+3) { background: #ffe7a1; }
