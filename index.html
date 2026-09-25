@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#eee6ff" />
+    <meta name="description" content="5살 아이를 위한 한글, 수학, 영어 놀이와 캐릭터 꾸미기" />
+    <title>반짝 놀이터</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="site-shell" id="site-shell">
+      <header class="site-header">
+        <button class="brand" type="button" data-action="home" aria-label="반짝 놀이터 첫 화면으로">
+          <svg class="brand-star" viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M32 4c3 0 6 4 8 12l9 1c8 1 10 6 4 12l-7 7 2 10c1 8-4 11-11 7l-8-5-9 5c-7 4-12 1-11-7l2-10-7-7c-6-6-4-11 4-12l9-1C26 8 29 4 32 4Z" fill="#ffd34f" stroke="#fff5c7" stroke-width="2"/>
+            <circle cx="24" cy="30" r="2.5" fill="#39235d"/><circle cx="40" cy="30" r="2.5" fill="#39235d"/>
+            <path d="M27 38c3 4 7 4 10 0" fill="none" stroke="#39235d" stroke-width="2.8" stroke-linecap="round"/>
+          </svg>
+          <span>반짝 놀이터</span>
+        </button>
+        <div class="header-actions">
+          <div class="star-total" aria-label="모은 별">
+            <svg viewBox="0 0 48 48" aria-hidden="true"><path d="m24 3 6.3 13.2 14.5 2-10.4 10.1 2.5 14.4L24 35.8 11.1 42.7l2.5-14.4L3.2 18.2l14.5-2z" fill="#ffd14e" stroke="#ffbb34" stroke-width="2"/></svg>
+            <span id="star-count">0</span>
+          </div>
+          <button class="sound-toggle icon-button" id="sound-toggle" type="button" aria-label="소리 끄기" aria-pressed="true">
+            <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M7 16h7l9-8v24l-9-8H7z" fill="currentColor"/><path class="sound-wave" d="M28 13c5 4 5 10 0 14m4-19c8 7 8 17 0 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </header>
+      <main id="app" tabindex="-1"></main>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
