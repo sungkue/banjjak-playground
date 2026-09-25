@@ -154,6 +154,91 @@ export function answerProgress(question, choice, alreadyAnswered) {
   return { correct, awardStar: correct && !alreadyAnswered };
 }
 
+const choiceLabel = (question, choice) => question.choiceKind === "picture" ? OBJECTS[choice] : String(choice);
+
+function answerFact(question, subject, solved = true) {
+  const answer = choiceLabel(question, question.answer);
+  const prompt = question.prompt;
+  if (subject === "hangul") {
+    if (prompt.includes("몇 글자")) return `${answer}글자야.${solved ? " 하나씩 잘 세었어!" : ""}`;
+    if (prompt.includes("첫 자음")) return `첫 자음은 ‘${answer}’이야.`;
+    if (prompt.includes("첫 글자")) return `첫 글자는 ‘${answer}’야.`;
+    if (prompt.includes("끝 글자")) return `끝 글자는 ‘${answer}’야.`;
+    if (prompt.includes("받침")) return `받침은 ‘${answer}’이야.`;
+    if (prompt.includes("반대말")) return `반대말은 ‘${answer}’이야.`;
+    if (prompt.includes("□")) return `빈칸에는 ‘${answer}’! 이어 읽어 봐.`;
+    if (question.choiceKind === "picture") {
+      const firstSound = prompt.match(/‘([^’]+)’(?:으)?로 시작/);
+      if (firstSound) return `‘${answer}’의 첫소리는 ‘${firstSound[1]}’야.`;
+      return `정답은 ‘${answer}’ 그림이야.${solved ? " 잘 찾았어!" : ""}`;
+    }
+    return `정답은 ‘${answer}’!${solved ? " 글을 잘 살펴봤어." : ""}`;
+  }
+  if (subject === "math") {
+    if (question.count) return `모두 ${answer}!${solved ? " 하나씩 잘 세었어." : ""}`;
+    if (question.operator) return `${question.left} ${question.operator === "+" ? "+" : "−"} ${question.right} = ${answer}!${solved ? " 차근차근 계산했어." : ""}`;
+    if (prompt.includes("가장 큰 수")) return `가장 큰 수는 ${answer}이야.`;
+    if (prompt.includes("가장 작은 수")) return `가장 작은 수는 ${answer}이야.`;
+    if (question.equation?.includes("?") || question.equation?.includes("□")) return `${question.equation.replace(/[?□]/, answer)}!${solved ? " 규칙을 잘 찾았어." : ""}`;
+    return `정답은 ${answer}!${solved ? " 수와 모양을 잘 살펴봤어." : ""}`;
+  }
+  if (question.choiceKind === "picture") return `‘${answer}’ 그림이야.${solved ? " 영어 소리와 연결했어!" : ""}`;
+  if (prompt.includes("첫 알파벳")) return `첫 알파벳은 ‘${answer}’야.`;
+  if (prompt.includes("작은 글자")) return `짝이 되는 작은 글자는 ‘${answer}’야.`;
+  if (question.object) return `${OBJECTS[question.object] || "이 그림"} = ${answer}!`;
+  if (typeof question.answer === "number") return `영어 숫자는 ${answer}이야.`;
+  return `정답은 ‘${answer}’!${solved ? " 소리와 뜻을 연결했어." : ""}`;
+}
+
+function answerHint(question, subject) {
+  const prompt = question.prompt;
+  if (subject === "hangul") {
+    if (prompt.includes("몇 글자")) return "글자를 손가락으로 하나씩 짚어 세어 봐.";
+    if (prompt.includes("첫 자음") || prompt.includes("첫 글자") || prompt.includes("시작")) return "낱말의 맨 앞 소리를 천천히 들어 봐.";
+    if (prompt.includes("끝 글자") || prompt.includes("받침")) return "낱말의 끝을 천천히 읽어 봐.";
+    if (prompt.includes("□")) return "빈칸 앞뒤를 이어 읽어 봐.";
+    if (prompt.includes("반대말")) return "반대되는 모습을 떠올려 봐.";
+    if (question.object) return "그림 이름을 소리 내어 말해 봐.";
+    if (prompt.includes("누가") || prompt.includes("누구")) return "문장에서 누가 했는지 다시 찾아봐.";
+    if (prompt.includes("어디")) return "문장에서 장소를 다시 찾아봐.";
+    return "문장에서 물어본 단서를 다시 찾아봐.";
+  }
+  if (subject === "math") {
+    if (question.count) return "그림을 손가락으로 하나씩 짚어 세어 봐.";
+    if (question.operator === "+") return "왼쪽 수에서 시작해 오른쪽 수만큼 더 세어 봐.";
+    if (question.operator === "-") return "왼쪽 수에서 오른쪽 수만큼 거꾸로 세어 봐.";
+    if (question.equation?.includes("□")) return "빈칸에 수를 넣어 계산이 맞는지 봐.";
+    if (question.equation?.includes("→")) return "화살표를 따라 바뀌는 순서를 살펴봐.";
+    if (prompt.includes("가장")) return "보이는 수를 하나씩 비교해 봐.";
+    if (prompt.includes("모서리")) return "모양의 뾰족한 곳을 하나씩 세어 봐.";
+    if (prompt.includes("변이")) return "모양의 곧은 선을 하나씩 세어 봐.";
+    if (prompt.includes("짧은 바늘")) return "시계의 짧은 바늘이 가리키는 수를 찾아봐.";
+    if (prompt.includes("십의 자리")) return "십의 자리와 일의 자리를 나누어 봐.";
+    return "수와 모양의 규칙을 다시 살펴봐.";
+  }
+  if (prompt.includes("첫 알파벳")) return "영어 단어 맨 앞 글자를 찾아봐.";
+  if (prompt.includes("작은 글자")) return "큰 글자와 짝인 작은 글자를 찾아봐.";
+  if (question.color) return "색을 보고 영어 이름을 떠올려 봐.";
+  if (typeof question.answer === "number") return "영어 숫자를 듣고 손가락으로 세어 봐.";
+  if (question.choiceKind === "picture") return "위의 스피커를 눌러 다시 듣고 그림을 골라 봐.";
+  if (question.object) return "그림을 보고 영어 이름을 떠올려 봐.";
+  return "위의 스피커를 눌러 영어 표현을 다시 들어 봐.";
+}
+
+export function answerFeedback(question, subject, choice, wrongAttempts, alreadyAnswered, variation = 0) {
+  if (gradeAnswer(question, choice)) return {
+    kind: "good",
+    title: wrongAttempts ? "다시 살펴보고 맞혔어!" : ["정답이야!", "잘 찾았어!", "맞았어!", "좋아!"][variation % 4],
+    detail: answerFact(question, subject),
+  };
+  if (alreadyAnswered) return {
+    kind: "explore", title: "다른 답도 살펴봤네!",
+    detail: `‘${choiceLabel(question, choice)}’도 보았어. ${answerFact(question, subject)}`,
+  };
+  if (wrongAttempts >= 2) return { kind: "reveal", title: "정답을 함께 확인하자!", detail: answerFact(question, subject, false) };
+  return { kind: "hint", title: ["다시 살펴보자!", "천천히 해 보자!", "한 번 더 해 보자!"][variation % 3], detail: answerHint(question, subject) };
+}
+
 function loadSaved() {
   const fallback = { stars: 0, completedStages: [], age: "six", outfit: "flower", scene: "room", soundOn: true };
   try {
@@ -175,8 +260,10 @@ function loadSaved() {
 }
 
 const state = typeof document === "undefined" ? null : loadSaved();
-const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, feedback: "" };
+const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
 const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
+const PRAISE_VOICES = ["praise", "praise-1", "praise-2", "praise-3"];
+const RETRY_VOICES = ["retry", "retry-1", "retry-2"];
 const audio = typeof document === "undefined" ? null : {
   music: new Audio(`${AUDIO}music-variety.mp3?v=3`), voice: new Audio(), effect: new Audio(),
 };
@@ -241,8 +328,8 @@ function dressSvg() {
 function speakerSvg() {
   return '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 16h7l9-8v24l-9-8H5z"/><path d="M26 14c4 3 4 9 0 12m4-17c7 6 7 16 0 22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
 }
-function avatar(className = "") {
-  return `<img class="${className}" src="${ASSET}outfit-${state.outfit}.webp" alt="꾸민 모습의 별이" />`;
+function avatar(className = "", decorative = false) {
+  return `<img class="${className}" src="${ASSET}outfit-${state.outfit}.webp" alt="${decorative ? "" : "꾸민 모습의 별이"}" />`;
 }
 function art(id, className, decorative = false) {
   return id in ART
@@ -332,12 +419,14 @@ function renderGame() {
     const artId = question.choiceKind === "picture" ? choice : null;
     const label = artId ? OBJECTS[choice] : choice;
     const picture = artId ? art(artId, "choice-art", true) : "";
-    const response = session.answered && choice === question.answer ? "correct" : session.wrongChoice === choice ? "wrong" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
+    const isWrong = session.answered ? session.wrongChoice === choice : session.wrongChoices.includes(choice);
+    const response = session.answered && choice === question.answer ? "correct" : isWrong ? "wrong" : !session.answered && session.wrongChoices.length >= 2 && choice === question.answer ? "answer-hint" : "";
+    const mark = response === "correct" ? "✓" : response === "answer-hint" ? "💡" : response === "wrong" ? "↻" : "";
+    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>`;
   }).join("");
-  const feedback = session.feedback
-    ? `<p class="feedback-message ${session.answered && session.wrongChoice === null ? "good" : ""}" role="status">${session.feedback}</p>`
-    : `<p class="feedback-message" role="status">${question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!"}</p>`;
+  const response = session.feedback || { kind: "idle", title: question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" };
+  const icon = { idle: "👀", good: "✨", hint: "💡", reveal: "🔎", explore: "🌱" }[response.kind];
+  const feedback = `<div class="feedback-message ${response.kind}" role="status"><span class="feedback-icon" aria-hidden="true">${icon}</span>${avatar("feedback-avatar", true)}<span class="feedback-copy"><strong>${response.title}</strong>${response.detail ? `<span>${response.detail}</span>` : ""}</span></div>`;
   return `<section class="game-screen" aria-label="${subject.title}">
     <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "seven" ? "7살 도전 · " : ""}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
     <div class="game-layout">
@@ -346,7 +435,7 @@ function renderGame() {
         <div class="choice-grid">${choices}</div>
         <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
       </div>
-      <div class="game-side">${avatar("game-avatar")}<div class="game-speech">${session.answered ? "정말 멋져! ♥" : "천천히 골라봐! ♥"}</div></div>
+      <div class="game-side">${avatar("game-avatar")}<div class="game-speech">${session.feedback?.title || "천천히 골라봐! ♥"}</div></div>
     </div>
   </section>`;
 }
@@ -405,7 +494,8 @@ function start(level) {
   session.index = 0;
   session.answered = false;
   session.wrongChoice = null;
-  session.feedback = "";
+  session.wrongChoices = [];
+  session.feedback = null;
   go("game");
   playQuestion();
 }
@@ -414,26 +504,40 @@ function answer(value) {
   if (session.view !== "game") return;
   const question = currentQuestion();
   const choice = typeof question.answer === "number" ? Number(value) : value;
+  if (!question.options.includes(choice)) return;
+  const variation = session.level * ROUND_SIZE + session.index + (session.age === "seven" ? 500 : 0);
   const { correct, awardStar } = answerProgress(question, choice, session.answered);
+  if (correct && session.answered) {
+    session.wrongChoice = null;
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation);
+    render();
+    document.querySelector(".feedback-row").scrollIntoView({ block: "nearest" });
+    if (session.subject === "english") playEnglishChoice(choice);
+    return;
+  }
   if (correct) {
     session.answered = true;
     session.wrongChoice = null;
-    session.feedback = "정답이야! 다른 것도 눌러봐 ✨";
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation);
     if (awardStar) {
       state.stars += 1;
       save();
-      playClip(audio.effect, CORRECT_EFFECTS[(session.level * ROUND_SIZE + session.index) % CORRECT_EFFECTS.length]);
+      playClip(audio.effect, CORRECT_EFFECTS[variation % CORRECT_EFFECTS.length]);
     }
-    if (session.subject === "english") playEnglishChoice(choice, () => playClip(audio.voice, "praise"));
-    else playClip(audio.voice, "praise");
+    const praise = session.wrongChoices.length ? "praise-3" : PRAISE_VOICES[variation % PRAISE_VOICES.length];
+    if (session.subject === "english") playEnglishChoice(choice, () => playClip(audio.voice, praise));
+    else playClip(audio.voice, praise);
   } else {
     session.wrongChoice = choice;
-    session.feedback = "괜찮아! 다시 한번 찾아보자.";
-    playClip(audio.effect, "try-again");
-    if (session.subject === "english") playEnglishChoice(choice);
-    else playClip(audio.voice, "retry");
+    if (!session.answered && !session.wrongChoices.includes(choice)) session.wrongChoices.push(choice);
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, session.answered, variation);
+    if (!session.answered) playClip(audio.effect, "try-again");
+    const voice = session.answered ? null : session.wrongChoices.length >= 2 ? "reveal" : RETRY_VOICES[variation % RETRY_VOICES.length];
+    if (session.subject === "english") playEnglishChoice(session.wrongChoices.length >= 2 && !session.answered ? question.answer : choice, voice ? () => playClip(audio.voice, voice) : null);
+    else if (voice) playClip(audio.voice, voice);
   }
   render();
+  document.querySelector(".feedback-row").scrollIntoView({ block: "nearest" });
 }
 
 function next() {
@@ -451,7 +555,8 @@ function next() {
   session.index += 1;
   session.answered = false;
   session.wrongChoice = null;
-  session.feedback = "";
+  session.wrongChoices = [];
+  session.feedback = null;
   render();
   playQuestion();
 }

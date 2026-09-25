@@ -197,6 +197,9 @@ img { display: block; max-width: 100%; }
 .choice-card:nth-child(3n+3) { background: #ffe7a1; }
 .choice-card.correct { border-color: #55c597; box-shadow: 0 0 0 5px #c8f2dd, var(--shadow); }
 .choice-card.wrong { filter: saturate(.5); opacity: .7; }
+.choice-card.answer-hint { border-color: #ecad35; box-shadow: 0 0 0 5px #fff1bd, var(--shadow); }
+.choice-mark { position: absolute; z-index: 1; top: -12px; right: -9px; display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: white; color: #278462; font: bold 24px sans-serif; box-shadow: 0 3px 8px rgba(79,52,102,.16); }
+.choice-card.wrong .choice-mark { color: #70598a; }
 .choice-art { width: 100%; height: 72%; margin: auto; object-fit: contain; }
 .choice-word { display: grid; place-items: center; width: 100%; min-height: 81px; border-radius: 50px; background: rgba(255,255,255,.84); font-size: clamp(32px, 3.6vw, 51px); line-height: 1; white-space: nowrap; }
 .choice-card.number { justify-content: center; height: clamp(190px, 29vh, 275px); }
@@ -205,8 +208,17 @@ img { display: block; max-width: 100%; }
 .choice-card.text .choice-word { min-height: 105px; padding: 8px; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .choice-card.long-word .choice-word { font-size: clamp(16px, 2vw, 30px); overflow-wrap: normal; }
 .feedback-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 105px; margin-top: 24px; }
-.feedback-message { margin: 0; padding: 18px 25px; border: 3px solid rgba(255,255,255,.91); border-radius: 30px; background: rgba(255,255,255,.91); color: #614991; box-shadow: 0 6px 15px rgba(95,65,146,.09); font-size: 29px; line-height: 1.2; }
-.feedback-message.good { color: #278462; }
+.feedback-message { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; margin: 0; padding: 15px 21px; border: 3px solid rgba(255,255,255,.91); border-radius: 30px; background: rgba(255,255,255,.91); color: #614991; box-shadow: 0 6px 15px rgba(95,65,146,.09); line-height: 1.2; }
+.feedback-icon { flex: 0 0 36px; font-size: 30px; text-align: center; }
+.feedback-avatar { display: none; }
+.feedback-copy { display: grid; gap: 4px; min-width: 0; }
+.feedback-copy strong { font-size: 28px; }
+.feedback-copy span { font-size: 22px; }
+.feedback-message.good { border-color: #9fe3bf; background: #f2fff8; color: #247b5b; animation: feedback-pop .3s ease-out; }
+.feedback-message.good .feedback-avatar { animation: float .6s ease-in-out 2; }
+.feedback-message.hint { border-color: #e2d4fc; background: #faf6ff; }
+.feedback-message.reveal { border-color: #f8d47b; background: #fffbea; }
+.feedback-message.explore { border-color: #b8def8; background: #f4fbff; }
 .next-button { min-height: 73px; padding-inline: 32px; font-size: 31px; }
 .game-side { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 560px; }
 .game-avatar { width: min(100%, 360px); max-height: 440px; object-fit: contain; filter: drop-shadow(0 10px 7px rgba(114,77,111,.12)); }
@@ -247,6 +259,7 @@ img { display: block; max-width: 100%; }
 .result-avatar { max-height: 500px; width: 100%; object-fit: contain; }
 
 @keyframes float { 50% { transform: translateY(-8px); } }
+@keyframes feedback-pop { 50% { transform: scale(1.025); } }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 
 @media (max-width: 1080px) {
@@ -316,7 +329,9 @@ img { display: block; max-width: 100%; }
   .choice-card.text { height: 195px; }
   .game-side { display: none; }
   .feedback-row { min-height: 80px; }
-  .feedback-message { font-size: 23px; }
+  .feedback-avatar { display: block; flex: 0 0 44px; width: 44px; height: 62px; object-fit: contain; }
+  .feedback-copy strong { font-size: 23px; }
+  .feedback-copy span { font-size: 19px; }
   .next-button { min-height: 60px; font-size: 25px; }
   .wardrobe { grid-template-columns: 1fr; }
   .wardrobe-stage { min-height: 380px; }
@@ -389,8 +404,11 @@ img { display: block; max-width: 100%; }
   .choice-card.text { height: 165px; }
   .choice-card.text .choice-word { min-height: 90px; font-size: clamp(19px, 5.2vw, 28px); }
   .choice-card.long-word .choice-word { font-size: 16px; overflow-wrap: normal; }
-  .feedback-row { align-items: stretch; flex-direction: column; }
-  .feedback-message { padding: 15px; font-size: 24px; }
+  .feedback-row { align-items: stretch; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .feedback-message { gap: 8px; padding: 10px 12px; }
+  .feedback-icon { flex-basis: 28px; font-size: 24px; }
+  .feedback-copy strong { font-size: 21px; }
+  .feedback-copy span { font-size: 18px; }
   .next-button { width: 100%; }
   .wardrobe-stage { min-height: 310px; }
   .wardrobe-avatar { max-height: 330px; }
