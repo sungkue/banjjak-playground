@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback, ageUnlocked, stageUnlocked } from "./app.js";
+import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback, ageUnlocked, stageUnlocked, earnedBadges } from "./app.js";
 import { EMOJI_ART } from "./extra-content.js";
 import { MORE_EMOJI_ART } from "./expanded-content.js";
 
@@ -46,6 +46,9 @@ assert.deepEqual(answerProgress(example, example.options.find(choice => choice !
 assert.match(answerFeedback(example, "hangul", "butterfly", 1, false).detail, /맨 앞 소리/);
 assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /가방/);
 assert.match(answerFeedback(example, "hangul", example.answer, 1, false).detail, /가방/);
+assert.notEqual(answerFeedback(example, "hangul", example.answer, 0, false).title, answerFeedback(example, "hangul", example.answer, 0, false, 1).title);
+assert.match(answerFeedback(example, "hangul", example.answer, 0, false, 0, true).title, /힌트/);
+assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /직접 눌러/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.math[0], "math", 11, 0, false).detail, /2 \+ 9 = 11/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.english[30], "english", "strawberry", 0, false).detail, /딸기/);
 const twoStep = AGE_QUESTIONS.eight.math[140];
@@ -74,4 +77,11 @@ assert.equal(stageUnlocked("eight", "english", 1, progress), false);
 progress.stars = 205;
 progress.completedStages.push("eight:english:0");
 assert.equal(stageUnlocked("eight", "english", 1, progress), true);
+const badgeProgress = { stars: 0, completedStages: [], retryWins: [], rememberedStages: [], bestStreak: 0 };
+assert.equal(earnedBadges(badgeProgress).length, 0);
+badgeProgress.stars = 1;
+badgeProgress.retryWins.push("six:hangul:0");
+badgeProgress.rememberedStages.push("hangul:0");
+badgeProgress.bestStreak = 3;
+for (const title of ["첫 반짝", "다시 해냈어", "기억 탐험가", "반짝 연속"]) assert.ok(earnedBadges(badgeProgress).some(badge => badge.title === title));
 console.log("1,500문제, 300단계, 잠금·정답·그림·소리 확인 완료");

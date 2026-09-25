@@ -24,6 +24,34 @@ const SUBJECTS = {
 const ROUND_SIZE = 5;
 const AGE_NAMES = { six: "기본 놀이", seven: "7살 도전", eight: "8살 도전" };
 const AGE_STAR_GATE = { six: 0, seven: 75, eight: 200 };
+const MISSIONS = [
+  { icon: "🌷", title: "꽃밭 피우기", finish: "꽃밭을 활짝 피웠어!" },
+  { icon: "🌈", title: "무지개 잇기", finish: "무지개가 완성됐어!" },
+  { icon: "⭐", title: "별자리 만들기", finish: "별자리가 반짝여!" },
+  { icon: "🐣", title: "숲 친구 만나기", finish: "숲 친구들이 모였어!" },
+  { icon: "🎁", title: "보물 상자 채우기", finish: "보물 상자를 채웠어!" },
+  { icon: "🧩", title: "퍼즐 완성하기", finish: "퍼즐을 완성했어!" },
+  { icon: "🐟", title: "바다 친구 만나기", finish: "바다 친구들이 모였어!" },
+  { icon: "🚀", title: "우주선 띄우기", finish: "우주선이 출발했어!" },
+  { icon: "🍓", title: "과일 바구니 채우기", finish: "바구니를 채웠어!" },
+  { icon: "🦄", title: "꿈의 길 만들기", finish: "꿈의 길을 완성했어!" },
+];
+const BADGES = [
+  { icon: "✨", title: "첫 반짝", goal: "별 1개", earned: s => s.stars >= 1 },
+  { icon: "📖", title: "한글 탐정", goal: "한글 1단계 완료", earned: s => s.completedStages.some(id => /^(?:seven:|eight:)?hangul:/.test(id)) },
+  { icon: "🔢", title: "숫자 마법사", goal: "수학 1단계 완료", earned: s => s.completedStages.some(id => /^(?:seven:|eight:)?math:/.test(id)) },
+  { icon: "🔤", title: "영어 친구", goal: "영어 1단계 완료", earned: s => s.completedStages.some(id => /^(?:seven:|eight:)?english:/.test(id)) },
+  { icon: "🌱", title: "다시 해냈어", goal: "다시 생각해 맞히기", earned: s => s.retryWins.length >= 1 },
+  { icon: "🧠", title: "기억 탐험가", goal: "기억 카드 1개 완료", earned: s => s.rememberedStages.length >= 1 },
+  { icon: "⚡", title: "반짝 연속", goal: "3문제 연속 스스로 맞히기", earned: s => s.bestStreak >= 3 },
+  { icon: "🌟", title: "별 스물다섯", goal: "별 25개", earned: s => s.stars >= 25 },
+  { icon: "🧭", title: "열 걸음 탐험", goal: "10단계 완료", earned: s => s.completedStages.length >= 10 },
+  { icon: "🦋", title: "새로운 도전", goal: "7살 도전 열기", earned: s => ageUnlocked("seven", s) },
+  { icon: "💎", title: "별 이백", goal: "별 200개", earned: s => s.stars >= 200 },
+  { icon: "🏰", title: "깊은 탐험", goal: "8살 도전 열기", earned: s => ageUnlocked("eight", s) },
+  { icon: "🏆", title: "백 번의 놀이", goal: "100단계 완료", earned: s => s.completedStages.length >= 100 },
+  { icon: "🌠", title: "별 천 개", goal: "별 1,000개", earned: s => s.stars >= 1000 },
+];
 export const LEVELS = {
   hangul: ["첫소리 1", "첫소리 2", "그림 낱말", "빈칸 채우기", "첫 글자", "끝 글자"],
   math: ["1~5 세기", "6~10 세기", "더하기 1", "더하기 2", "빼기", "수의 순서"],
@@ -165,6 +193,10 @@ export function stageUnlocked(age, subject, index, progress) {
     && progress.stars >= AGE_STAR_GATE[age] + index * ROUND_SIZE;
 }
 
+export function earnedBadges(progress) {
+  return BADGES.filter(badge => badge.earned(progress));
+}
+
 function unlockNote(age, progress) {
   const missing = AGE_STAR_GATE[age] - progress.stars;
   if (missing > 0) return `별 ${missing}개 더`;
@@ -261,22 +293,35 @@ function answerHint(question, subject) {
   return "위의 스피커를 눌러 영어 표현을 다시 들어 봐.";
 }
 
-export function answerFeedback(question, subject, choice, wrongAttempts, alreadyAnswered, variation = 0) {
+export function answerFeedback(question, subject, choice, wrongAttempts, alreadyAnswered, variation = 0, usedHint = false) {
+  const firstTryTitles = {
+    hangul: ["소리를 찾아냈어!", "글자를 잘 살폈어!", "낱말 탐정 성공!", "읽고 찾아냈어!", "글자 단서를 찾았어!", "한글 별이 반짝!"],
+    math: ["수를 찾아냈어!", "차근차근 풀었어!", "숫자 탐정 성공!", "규칙을 찾아냈어!", "계산 별이 반짝!", "수학 한 걸음 성공!"],
+    english: ["소리와 뜻을 이었어!", "영어 단어를 찾았어!", "영어 탐정 성공!", "잘 듣고 골랐어!", "영어 별이 반짝!", "새 단어를 익혔어!"],
+  };
   if (gradeAnswer(question, choice)) return {
     kind: "good",
-    title: wrongAttempts ? "다시 살펴보고 맞혔어!" : ["정답이야!", "잘 찾았어!", "맞았어!", "좋아!"][variation % 4],
+    title: wrongAttempts ? ["다시 생각해 해결했어!", "한 번 더 살펴보고 찾았어!", "끝까지 찾아냈어!", "새 단서를 써서 맞혔어!"][variation % 4]
+      : usedHint ? ["힌트를 써서 해결했어!", "단서를 활용해 찾았어!", "차근차근 확인했어!"][variation % 3]
+      : firstTryTitles[subject][variation % firstTryTitles[subject].length],
     detail: answerFact(question, subject),
   };
   if (alreadyAnswered) return {
-    kind: "explore", title: "다른 답도 살펴봤네!",
+    kind: "explore", title: ["다른 카드도 살펴봤구나!", "비교해 보니 더 잘 알겠지?", "하나 더 확인했어!"][variation % 3],
     detail: `‘${choiceLabel(question, choice)}’도 보았어. ${answerFact(question, subject)}`,
   };
-  if (wrongAttempts >= 2) return { kind: "reveal", title: "정답을 함께 확인하자!", detail: answerFact(question, subject, false) };
-  return { kind: "hint", title: ["다시 살펴보자!", "천천히 해 보자!", "한 번 더 해 보자!"][variation % 3], detail: answerHint(question, subject) };
+  if (wrongAttempts >= 2) return {
+    kind: "reveal", title: ["이제 정답을 함께 찾아보자!", "단서를 모아 확인해 보자!", "정답을 눌러 마무리해 보자!"][variation % 3],
+    detail: `${answerFact(question, subject, false)} 정답 카드를 직접 눌러 봐.`,
+  };
+  return {
+    kind: "hint", title: ["다른 단서를 찾아볼까?", "천천히 다시 볼까?", "한 가지씩 살펴보자!", "소리 내어 생각해 볼까?", "다른 방법으로 해 보자!"][variation % 5],
+    detail: answerHint(question, subject),
+  };
 }
 
 function loadSaved() {
-  const fallback = { stars: 0, completedStages: [], earnedQuestions: [], age: "six", outfit: "flower", scene: "room", soundOn: true };
+  const fallback = { stars: 0, completedStages: [], earnedQuestions: [], retryWins: [], rememberedStages: [], bestStreak: 0, age: "six", outfit: "flower", scene: "room", soundOn: true };
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     if (!raw || typeof raw !== "object") return fallback;
@@ -298,6 +343,9 @@ function loadSaved() {
       stars: Number.isSafeInteger(raw.stars) && raw.stars >= 0 ? raw.stars : 0,
       completedStages: [...new Set(completedStages)],
       earnedQuestions: [...new Set(earnedQuestions)],
+      retryWins: Array.isArray(raw.retryWins) ? [...new Set(raw.retryWins.filter(id => typeof id === "string"))] : [],
+      rememberedStages: Array.isArray(raw.rememberedStages) ? [...new Set(raw.rememberedStages.filter(id => completedStages.includes(id)))] : [],
+      bestStreak: Number.isSafeInteger(raw.bestStreak) && raw.bestStreak >= 0 ? raw.bestStreak : 0,
       age: Object.hasOwn(AGE_LEVELS, raw.age) ? raw.age : "six",
       outfit: OUTFITS.some(item => item.id === raw.outfit) ? raw.outfit : "flower",
       scene: SCENES.some(item => item.id === raw.scene) ? raw.scene : "room",
@@ -309,7 +357,7 @@ function loadSaved() {
 }
 
 const state = typeof document === "undefined" ? null : loadSaved();
-const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, newStars: 0, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
+const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, newStars: 0, firstTry: 0, recovered: 0, helped: 0, streak: 0, missedIndices: [], badgesBefore: [], recall: false, recallReady: false, recallDone: false, countStep: 0, readStep: -1, choices: [], hintShown: false, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
 const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
 const PRAISE_VOICES = ["praise", "praise-1", "praise-2", "praise-3"];
 const RETRY_VOICES = ["retry", "retry-1", "retry-2"];
@@ -324,6 +372,19 @@ if (audio) {
 
 function currentQuestion() {
   return questionsFor()[session.level * ROUND_SIZE + session.index];
+}
+
+function shuffleChoices(question) {
+  const choices = [...question.options];
+  for (let index = choices.length - 1; index > 0; index--) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [choices[index], choices[other]] = [choices[other], choices[index]];
+  }
+  return choices;
+}
+
+function currentMission() {
+  return MISSIONS[(session.level + Object.keys(SUBJECTS).indexOf(session.subject) + Object.keys(AGE_LEVELS).indexOf(session.age)) % MISSIONS.length];
 }
 
 function save() {
@@ -389,6 +450,7 @@ function art(id, className, decorative = false) {
 function renderHome() {
   const done = completedInAge(session.age, state);
   const total = Object.values(AGE_LEVELS[session.age]).reduce((sum, levels) => sum + levels.length, 0);
+  const collected = earnedBadges(state);
   const subjectCards = Object.entries(SUBJECTS).map(([id, subject]) => `
     <button class="subject-tile ${id}" type="button" data-action="levels" data-subject="${id}" aria-label="${subject.label} 놀이 고르기">
       <img class="subject-art" src="${ASSET}${subject.art}.webp" alt="" />
@@ -413,6 +475,7 @@ function renderHome() {
         <span class="progress-track" aria-hidden="true"><span class="progress-fill" style="--fill:${done / total * 100}%"></span></span>
         <span class="progress-value">${starSvg()} ${done} / ${total}</span>
       </div>
+      <button class="sticker-teaser" type="button" data-action="stickers"><span class="sticker-teaser-icons" aria-hidden="true">${(collected.length ? collected.slice(-3) : BADGES.slice(0, 3)).map(badge => badge.icon).join(" ")}</span><span><strong>내 스티커북</strong><small>${collected.length} / ${BADGES.length}개 모았어 · 눌러서 보기</small></span><span aria-hidden="true">→</span></button>
     </div>
     <div class="home-stage">
       <span class="stage-sparkle one" aria-hidden="true">✦</span><span class="stage-sparkle two" aria-hidden="true">✦</span>
@@ -420,6 +483,12 @@ function renderHome() {
       <button class="primary-button decorate-button" type="button" data-action="wardrobe">${dressSvg()} 꾸미기 <span aria-hidden="true">→</span></button>
     </div>
   </section>`;
+}
+
+function renderStickers() {
+  const earned = earnedBadges(state).length;
+  const cards = BADGES.map(badge => `<div class="sticker-card ${badge.earned(state) ? "earned" : "locked"}" aria-label="${badge.title}, ${badge.earned(state) ? "얻었어" : `모으려면 ${badge.goal}`}"><span class="sticker-icon" aria-hidden="true">${badge.earned(state) ? badge.icon : "?"}</span><strong>${badge.title}</strong><small>${badge.earned(state) ? "모았어!" : badge.goal}</small></div>`).join("");
+  return `<section class="sticker-screen" aria-label="내 스티커북"><div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">내 스티커북</h1></div><p class="sticker-intro">스티커 ${earned} / ${BADGES.length}개 모았어</p><div class="sticker-grid">${cards}</div></section>`;
 }
 
 function renderLevels() {
@@ -449,6 +518,7 @@ function renderLevels() {
 }
 
 function renderSteps() {
+  if (session.recall) return '<div class="steps recall-step" aria-label="기억 카드 한 문제">🧠 기억 카드</div>';
   let html = "";
   for (let index = 0; index < ROUND_SIZE; index++) {
     if (index) html += '<span class="step-line" aria-hidden="true"></span>';
@@ -460,9 +530,12 @@ function renderSteps() {
 function renderGame() {
   const subject = SUBJECTS[session.subject];
   const question = currentQuestion();
+  const mission = currentMission();
+  const words = question.prompt.split(/\s+/);
+  const questionText = session.subject === "hangul" ? words.map((word, index) => `<span class="reading-word ${index === session.readStep ? "active" : ""}">${word}</span>`).join(" ") : question.prompt;
   let illustration = "";
   if (question.count) {
-    illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" role="img" aria-label="${question.count}개의 ${question.object ? OBJECTS[question.object] : "점"}">${Array.from({ length: question.count }, () => question.object ? art(question.object, "count-art", true) : '<i class="math-dot"></i>').join("")}</div>`;
+    illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" role="img" aria-label="${question.count}개의 ${question.object ? OBJECTS[question.object] : "점"}">${Array.from({ length: question.count }, (_, index) => question.object ? art(question.object, `count-art ${index < session.countStep ? "counted" : ""}`, true) : `<i class="math-dot ${index < session.countStep ? "counted" : ""}"></i>`).join("")}</div>`;
   } else if (question.operator && question.left <= 10 && question.right <= 10) {
     const dots = count => `<span class="dot-group">${Array.from({ length: count }, () => '<i class="math-dot"></i>').join("")}</span>`;
     illustration = `<div class="math-visual" aria-hidden="true">${dots(question.left)}<span class="math-symbol">${question.operator === "+" ? "+" : "−"}</span>${dots(question.right)}</div>`;
@@ -472,7 +545,7 @@ function renderGame() {
     illustration = `<span class="color-swatch" style="--swatch:${question.color}" aria-hidden="true"></span>`;
   }
   if (question.equation) illustration += `<span class="equation">${question.equation}</span>`;
-  const choices = question.options.map(choice => {
+  const choices = session.choices.map(choice => {
     const isNumber = typeof choice === "number";
     const artId = question.choiceKind === "picture" ? choice : null;
     const label = artId ? OBJECTS[choice] : choice;
@@ -480,18 +553,28 @@ function renderGame() {
     const isWrong = session.answered ? session.wrongChoice === choice : session.wrongChoices.includes(choice);
     const response = session.answered && choice === question.answer ? "correct" : isWrong ? "wrong" : !session.answered && session.wrongChoices.length >= 2 && choice === question.answer ? "answer-hint" : "";
     const mark = response === "correct" ? "✓" : response === "answer-hint" ? "💡" : response === "wrong" ? "↻" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${isNumber && String(label).length >= 3 ? "triple-number" : ""} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>`;
+    return `<div class="choice-wrap"><button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${isNumber && String(label).length >= 3 ? "triple-number" : ""} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>${session.subject === "english" ? `<button class="choice-listen" type="button" data-action="listen-choice" data-value="${choice}" aria-label="${label} 소리 듣기">🔊</button>` : ""}</div>`;
   }).join("");
-  const response = session.feedback || { kind: "idle", title: question.operator && question.left > 10 ? "차근차근 계산해 보자!" : question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" };
+  const response = session.feedback || (session.recall && !session.recallReady
+    ? { kind: "idle", title: "먼저 답을 떠올려 봐!", detail: "생각이 끝나면 보기를 열어 보자." }
+    : { kind: "idle", title: question.operator && question.left > 10 ? "차근차근 계산해 보자!" : question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" });
   const icon = { idle: "👀", good: "✨", hint: "💡", reveal: "🔎", explore: "🌱" }[response.kind];
   const feedback = `<div class="feedback-message ${response.kind}" role="status"><span class="feedback-icon" aria-hidden="true">${icon}</span>${avatar("feedback-avatar", true)}<span class="feedback-copy"><strong>${response.title}</strong>${response.detail ? `<span>${response.detail}</span>` : ""}</span></div>`;
+  const countMax = question.count && question.count <= 10 ? question.count : question.operator && question.left <= 20 && question.right <= 10 ? question.right : 0;
+  const countValue = question.count ? session.countStep : question.left + (question.operator === "+" ? session.countStep : -session.countStep);
+  const countTool = countMax && !session.answered ? `<div class="count-tool"><span>${session.countStep ? `지금 ${countValue}${session.countStep === countMax ? " · 보기에서 찾아봐!" : ""}` : question.count ? "그림을 하나씩 세어 봐" : `${question.left}부터 ${question.operator === "+" ? "더해" : "빼"} 보자`}</span><button type="button" data-action="count-step" ${session.countStep === countMax ? "disabled" : ""}>${question.count ? "하나 세기" : question.operator === "+" ? "+1 해 보기" : "−1 해 보기"}</button></div>` : "";
+  const readTool = session.subject === "hangul" && !session.answered ? `<div class="read-tool"><span>${session.readStep < 0 ? "문장을 나눠 읽어 봐" : `‘${words[session.readStep]}’ 읽어 볼까?`}</span><button type="button" data-action="read-step">${session.readStep < 0 ? "한 마디씩 읽기" : "다음 말 보기"}</button></div>` : "";
+  const tools = !session.recall || session.recallReady ? `<div class="learning-tools">${!session.answered && !session.hintShown ? '<button type="button" data-action="hint">💡 힌트 보기</button>' : ""}${countTool}${readTool}</div>` : "";
+  const progress = Array.from({ length: ROUND_SIZE }, (_, index) => `<span class="${index < session.index + Number(session.answered) ? "filled" : ""}" aria-hidden="true">${index < session.index + Number(session.answered) ? mission.icon : "○"}</span>`).join("");
   return `<section class="game-screen" aria-label="${subject.title}">
     <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "six" ? "" : `${AGE_NAMES[session.age]} · `}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
     <div class="game-layout">
       <div class="game-main">
-        <div class="question-panel ${question.prompt.length > 38 ? "long-question" : ""}"><div class="question-content"><span class="question-text">${question.prompt}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
-        <div class="choice-grid ${question.options.some(choice => String(choice).length > 18) ? "long-choices" : ""}">${choices}</div>
-        <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
+        ${session.recall ? '<div class="mission-strip memory">보기를 보기 전에 답을 말해 봐!</div>' : `<div class="mission-strip"><strong>${mission.icon} ${mission.title}</strong><span class="mission-progress" aria-label="${session.index + Number(session.answered)}개 완료, 전체 5개">${progress}</span>${session.streak >= 2 ? `<small>✨ 연속 ${session.streak}번</small>` : ""}</div>`}
+        <div class="question-panel ${question.prompt.length > 38 ? "long-question" : ""}"><div class="question-content"><span class="question-text">${questionText}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
+        ${session.recall && !session.recallReady ? '<button class="primary-button recall-reveal" type="button" data-action="reveal-choices">생각했어! 보기 열기 →</button>' : `<div class="choice-grid ${question.options.some(choice => String(choice).length > 18) ? "long-choices" : ""}">${choices}</div>`}
+        ${tools}
+        <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.recall ? "기억 카드 마치기" : session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
       </div>
       <div class="game-side">${avatar("game-avatar")}<div class="game-speech">${session.feedback?.title || "천천히 골라봐! ♥"}</div></div>
     </div>
@@ -520,10 +603,15 @@ function renderResult() {
   const nextLevel = session.level + 1;
   const hasNext = nextLevel < levelsFor().length;
   const nextOpen = hasNext && stageUnlocked(session.age, session.subject, nextLevel, state);
+  const mission = currentMission();
+  const newBadges = earnedBadges(state).filter(badge => !session.badgesBefore.includes(badge.title));
   return `<section class="result" aria-label="놀이 완료"><div class="result-panel">
-    <div class="result-copy">${starSvg()}<h1>우와, 다 해냈어!</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! ${session.newStars ? `새로운 반짝 별 ${session.newStars}개를 모았어.` : "다시 풀며 연습했어."}</p>
+    <div class="result-copy">${starSvg()}<h1>${mission.finish}</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! ${session.newStars ? `새로운 반짝 별 ${session.newStars}개를 모았어.` : "다시 풀며 연습했어."}</p>
+      <div class="round-recap">${session.firstTry ? `<span>✨ 스스로 찾기 ${session.firstTry}</span>` : ""}${session.helped ? `<span>💡 힌트 활용 ${session.helped}</span>` : ""}${session.recovered ? `<span>🌱 다시 성공 ${session.recovered}</span>` : ""}</div>
+      ${session.recallDone ? '<p class="recall-done">🧠 기억 카드도 완성했어!</p>' : '<p class="recall-invite">🧠 기억 카드: 보기 전에 답을 떠올려 볼까?</p>'}
+      ${newBadges.length ? `<div class="new-stickers"><strong>새 스티커를 모았어!</strong><span>${newBadges.map(badge => `${badge.icon} ${badge.title}`).join(" · ")}</span></div>` : ""}
       ${hasNext && !nextOpen ? `<p class="result-unlock">다음 단계는 별 ${AGE_STAR_GATE[session.age] + nextLevel * ROUND_SIZE - state.stars}개를 더 모으면 열려요.</p>` : ""}
-      <div class="result-actions">${nextOpen ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
+      <div class="result-actions">${!session.recallDone ? '<button class="primary-button" type="button" data-action="recall">기억 카드 도전 →</button>' : ""}${nextOpen ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="stickers">스티커북</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
     </div>${avatar("result-avatar")}
   </div></section>`;
 }
@@ -535,7 +623,7 @@ function render() {
   const soundButton = document.querySelector("#sound-toggle");
   soundButton.setAttribute("aria-pressed", String(state.soundOn));
   soundButton.setAttribute("aria-label", state.soundOn ? "모든 소리 끄기" : "모든 소리 켜기");
-  app.innerHTML = session.view === "home" ? renderHome() : session.view === "levels" ? renderLevels() : session.view === "game" ? renderGame() : session.view === "wardrobe" ? renderWardrobe() : renderResult();
+  app.innerHTML = session.view === "home" ? renderHome() : session.view === "levels" ? renderLevels() : session.view === "game" ? renderGame() : session.view === "wardrobe" ? renderWardrobe() : session.view === "stickers" ? renderStickers() : renderResult();
 }
 
 function go(view) {
@@ -555,6 +643,19 @@ function start(level) {
   session.level = level;
   session.index = 0;
   session.newStars = 0;
+  session.firstTry = 0;
+  session.recovered = 0;
+  session.helped = 0;
+  session.streak = 0;
+  session.missedIndices = [];
+  session.badgesBefore = earnedBadges(state).map(badge => badge.title);
+  session.recall = false;
+  session.recallReady = false;
+  session.recallDone = false;
+  session.countStep = 0;
+  session.readStep = -1;
+  session.choices = shuffleChoices(currentQuestion());
+  session.hintShown = false;
   session.answered = false;
   session.wrongChoice = null;
   session.wrongChoices = [];
@@ -563,8 +664,49 @@ function start(level) {
   playQuestion();
 }
 
+function startRecall() {
+  if (session.view !== "result") return;
+  session.badgesBefore = earnedBadges(state).map(badge => badge.title);
+  session.index = session.missedIndices[0] ?? session.level % ROUND_SIZE;
+  session.recall = true;
+  session.recallReady = false;
+  session.countStep = 0;
+  session.readStep = -1;
+  session.choices = shuffleChoices(currentQuestion());
+  session.hintShown = false;
+  session.answered = false;
+  session.wrongChoice = null;
+  session.wrongChoices = [];
+  session.feedback = null;
+  go("game");
+  playQuestion();
+}
+
+function showHint() {
+  if (session.view !== "game" || session.answered || session.hintShown || session.recall && !session.recallReady) return;
+  session.hintShown = true;
+  if (!session.recall && !session.missedIndices.includes(session.index)) session.missedIndices.push(session.index);
+  session.feedback = { kind: "hint", title: ["단서를 찾아보자!", "이렇게 해 볼까?", "한 걸음씩 풀어 보자!"][(session.level + session.index) % 3], detail: answerHint(currentQuestion(), session.subject) };
+  render();
+}
+
+function countStep() {
+  if (session.view !== "game" || session.answered || session.subject !== "math") return;
+  const question = currentQuestion();
+  const max = question.count && question.count <= 10 ? question.count : question.operator && question.left <= 20 && question.right <= 10 ? question.right : 0;
+  if (!max || session.countStep >= max) return;
+  session.countStep += 1;
+  render();
+}
+
+function readStep() {
+  if (session.view !== "game" || session.answered || session.subject !== "hangul") return;
+  session.readStep = (session.readStep + 1) % currentQuestion().prompt.split(/\s+/).length;
+  render();
+}
+
 function answer(value) {
-  if (session.view !== "game") return;
+  if (session.view !== "game" || session.recall && !session.recallReady) return;
   const question = currentQuestion();
   const choice = typeof question.answer === "number" ? Number(value) : value;
   if (!question.options.includes(choice)) return;
@@ -574,7 +716,7 @@ function answer(value) {
   const { correct, awardStar } = answerProgress(question, choice, session.answered || state.earnedQuestions.includes(earnedId));
   if (correct && session.answered) {
     session.wrongChoice = null;
-    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation);
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation, session.hintShown);
     render();
     document.querySelector(".feedback-row").scrollIntoView({ block: "nearest" });
     if (session.subject === "english") playEnglishChoice(choice);
@@ -583,11 +725,29 @@ function answer(value) {
   if (correct) {
     session.answered = true;
     session.wrongChoice = null;
-    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation);
-    if (awardStar) {
-      state.stars += 1;
-      state.earnedQuestions.push(earnedId);
-      session.newStars += 1;
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation, session.hintShown);
+    if (session.recall) {
+      const id = stageId(session.subject, session.level, session.age);
+      if (!state.rememberedStages.includes(id)) { state.rememberedStages.push(id); save(); }
+      session.feedback.title = session.wrongChoices.length ? "다시 생각해 기억해 냈어!" : "기억 카드를 해결했어!";
+    } else {
+      if (session.wrongChoices.length) {
+        session.recovered += 1;
+        session.streak = 0;
+        if (!state.retryWins.includes(earnedId)) state.retryWins.push(earnedId);
+      } else if (session.hintShown) {
+        session.helped += 1;
+        session.streak = 0;
+      } else {
+        session.firstTry += 1;
+        session.streak += 1;
+        state.bestStreak = Math.max(state.bestStreak, session.streak);
+      }
+      if (awardStar) {
+        state.stars += 1;
+        state.earnedQuestions.push(earnedId);
+        session.newStars += 1;
+      }
       save();
     }
     playClip(audio.effect, CORRECT_EFFECTS[variation % CORRECT_EFFECTS.length]);
@@ -596,7 +756,11 @@ function answer(value) {
     else playClip(audio.voice, praise);
   } else {
     session.wrongChoice = choice;
-    if (!session.answered && !session.wrongChoices.includes(choice)) session.wrongChoices.push(choice);
+    if (!session.answered && !session.wrongChoices.includes(choice)) {
+      session.wrongChoices.push(choice);
+      if (!session.recall && !session.missedIndices.includes(session.index)) session.missedIndices.push(session.index);
+      session.streak = 0;
+    }
     session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, session.answered, variation);
     if (!session.answered) playClip(audio.effect, "try-again");
     const voice = session.answered ? null : session.wrongChoices.length >= 2 ? "reveal" : RETRY_VOICES[variation % RETRY_VOICES.length];
@@ -610,6 +774,12 @@ function answer(value) {
 function next() {
   if (!session.answered) return;
   audio.effect.pause();
+  if (session.recall) {
+    session.recall = false;
+    session.recallDone = true;
+    go("result");
+    return;
+  }
   if (session.index === ROUND_SIZE - 1) {
     const completedId = stageId(session.subject, session.level, session.age);
     if (!state.completedStages.includes(completedId)) state.completedStages.push(completedId);
@@ -624,6 +794,10 @@ function next() {
   session.wrongChoice = null;
   session.wrongChoices = [];
   session.feedback = null;
+  session.hintShown = false;
+  session.countStep = 0;
+  session.readStep = -1;
+  session.choices = shuffleChoices(currentQuestion());
   render();
   playQuestion();
 }
@@ -647,10 +821,21 @@ if (typeof document !== "undefined") {
         break;
       case "home": go("home"); break;
       case "wardrobe": go("wardrobe"); break;
+      case "stickers": go("stickers"); break;
       case "levels": openLevels(button.dataset.subject || session.subject); break;
       case "start": start(Number(button.dataset.level)); break;
       case "answer": answer(button.dataset.value); break;
+      case "hint": showHint(); break;
+      case "count-step": countStep(); break;
+      case "read-step": readStep(); break;
+      case "listen-choice":
+        if (session.view === "game" && session.subject === "english" && currentQuestion().options.includes(button.dataset.value)) playEnglishChoice(button.dataset.value);
+        break;
+      case "reveal-choices":
+        if (session.view === "game" && session.recall && !session.recallReady) { session.recallReady = true; render(); }
+        break;
       case "next": next(); break;
+      case "recall": startRecall(); break;
       case "next-level": start(session.level + 1); break;
       case "replay": start(session.level); break;
       case "speak-question": playQuestion(); break;
