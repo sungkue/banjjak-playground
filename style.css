@@ -67,13 +67,16 @@ img { display: block; max-width: 100%; }
 .icon-button svg { width: 100%; height: 100%; }
 .sound-toggle[aria-pressed="false"] .sound-wave { opacity: .22; }
 .sound-toggle[aria-pressed="false"]::after { content: ""; position: absolute; width: 36px; height: 3px; background: #f25f7c; transform: rotate(-40deg); border-radius: 4px; }
+.audio-status { position: fixed; z-index: 10; top: 105px; right: 20px; max-width: min(440px, calc(100vw - 40px)); margin: 0; padding: 13px 18px; border: 3px solid #ffcf76; border-radius: 20px; background: #fff8dd; box-shadow: var(--shadow); font-size: 22px; }
+.audio-status[hidden] { display: none; }
 #app { width: min(100%, 1600px); margin: 0 auto; padding: 0 clamp(20px, 3.4vw, 56px) 30px; }
 
 /* Home */
 .home { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, .92fr); gap: clamp(24px, 3vw, 54px); align-items: end; min-height: min(760px, calc(100dvh - 110px)); }
 .home-left { align-self: start; padding-top: clamp(35px, 5vh, 62px); }
 .home h1, .page-title { margin: 0; font-size: clamp(39px, 4.4vw, 68px); font-weight: 400; letter-spacing: -.025em; line-height: 1.14; text-shadow: 0 3px 0 rgba(255,255,255,.55); }
-.home h1 { margin-bottom: clamp(30px, 4.3vh, 45px); white-space: nowrap; }
+.home h1 { margin-bottom: 6px; white-space: nowrap; }
+.audio-hint { margin: 0 0 clamp(19px, 3vh, 32px); color: #685188; font-size: clamp(20px, 2vw, 26px); }
 .subject-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .subject-tile {
   position: relative;
@@ -113,6 +116,10 @@ img { display: block; max-width: 100%; }
 /* Short learning rounds */
 .levels-screen { padding-bottom: 45px; }
 .levels-intro { margin: 20px 0 25px; font-size: 31px; }
+.continue-button { margin: 0 0 28px; }
+.level-group { margin: 12px 0 34px; }
+.level-group h2 { display: flex; align-items: baseline; gap: 15px; margin: 0 0 16px; font-size: 34px; font-weight: 400; }
+.level-group h2 small { color: #705b92; font-size: 22px; }
 .level-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .level-card { display: flex; flex-direction: column; align-items: flex-start; min-height: 185px; padding: 20px 24px; border: 4px solid white; border-radius: 32px; background: #ffd7df; box-shadow: var(--shadow); color: var(--ink); text-align: left; transition: transform .15s ease; }
 .level-card:nth-child(3n+2) { background: #d4edff; }
@@ -162,6 +169,12 @@ img { display: block; max-width: 100%; }
 .question-image { width: 102px; height: 95px; margin: 0 auto 4px; object-fit: contain; }
 .count-objects { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: min(100%, 460px); gap: 2px; margin: 10px auto 0; }
 .count-objects img { flex: 0 0 18%; width: 18%; height: 70px; object-fit: contain; }
+.count-dots { display: grid; grid-template-columns: repeat(5, 24px); gap: 8px 13px; width: max-content; }
+.count-dots .math-dot { width: 24px; height: 24px; }
+.emoji-art { display: grid; place-items: center; line-height: 1; font-family: "Segoe UI Emoji", sans-serif; }
+.emoji-art.question-image { font-size: 82px; }
+.emoji-art.choice-art { font-size: clamp(60px, 8vw, 100px); }
+.emoji-art.count-art { font-size: 46px; }
 .math-visual { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 12px auto 0; }
 .dot-group { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 170px; }
 .math-dot { width: 22px; height: 22px; border-radius: 50%; background: #ff9aaf; border: 2px solid #ef6f8d; }
@@ -330,6 +343,10 @@ img { display: block; max-width: 100%; }
   .page-title { font-size: 35px; }
   .back-button { min-height: 47px; font-size: 18px; }
   .levels-intro { margin: 7px 0 18px; font-size: 22px; }
+  .continue-button { width: 100%; margin-bottom: 20px; font-size: 24px; }
+  .level-group { margin-bottom: 26px; }
+  .level-group h2 { margin-bottom: 10px; font-size: 26px; }
+  .level-group h2 small { font-size: 17px; }
   .level-card { min-height: 150px; padding: 12px; border-width: 3px; }
   .level-number { width: 37px; height: 37px; font-size: 22px; }
   .level-title { margin-top: 10px; font-size: 24px; }
@@ -343,6 +360,10 @@ img { display: block; max-width: 100%; }
   .question-text { font-size: 32px; }
   .question-image { height: 70px; width: 80px; }
   .count-objects img { height: 53px; }
+  .count-dots { grid-template-columns: repeat(5, 18px); gap: 5px 8px; }
+  .count-dots .math-dot { width: 18px; height: 18px; }
+  .emoji-art.question-image { font-size: 63px; }
+  .emoji-art.choice-art { font-size: clamp(40px, 12vw, 64px); }
   .math-visual { gap: 8px; }
   .dot-group { max-width: 105px; gap: 3px; }
   .math-dot { width: 16px; height: 16px; border-width: 1px; }

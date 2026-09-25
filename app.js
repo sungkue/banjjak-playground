@@ -1,4 +1,7 @@
+import { EMOJI_ART, EXTRA_LEVELS, EXTRA_OBJECTS, EXTRA_QUESTIONS } from "./extra-content.js";
+
 const ASSET = "./assets/";
+const AUDIO = "./audio/";
 const STORAGE_KEY = "banjjak-playground-v1";
 const OUTFITS = [
   { id: "flower", label: "꽃 원피스" },
@@ -26,6 +29,7 @@ const OBJECTS = {
   backpack: "가방", butterfly: "나비", apple: "사과", rabbit: "토끼",
   hat: "모자", duck: "오리", banana: "바나나", milk: "우유",
   cat: "고양이", dog: "강아지", sun: "해", flower: "꽃",
+  ...EXTRA_OBJECTS,
 };
 
 export const QUESTIONS = {
@@ -127,6 +131,11 @@ export const QUESTIONS = {
   ],
 };
 
+for (const subject of Object.keys(LEVELS)) {
+  LEVELS[subject].push(...EXTRA_LEVELS[subject]);
+  QUESTIONS[subject].push(...EXTRA_QUESTIONS[subject]);
+}
+
 export function gradeAnswer(question, choice) {
   return question.options.includes(choice) && choice === question.answer;
 }
@@ -151,6 +160,14 @@ function loadSaved() {
 
 const state = typeof document === "undefined" ? null : loadSaved();
 const session = { view: "home", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, feedback: "" };
+const audio = typeof document === "undefined" ? null : {
+  music: new Audio(`${AUDIO}music.mp3`), voice: new Audio(), effect: new Audio(),
+};
+if (audio) {
+  audio.music.loop = true;
+  audio.music.volume = .4;
+  audio.effect.volume = .55;
+}
 
 function currentQuestion() {
   return QUESTIONS[session.subject][session.level * ROUND_SIZE + session.index];
@@ -160,15 +177,39 @@ function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* Browsing can continue without storage. */ }
 }
 
-function speak(text, lang = "ko-KR") {
-  if (!state.soundOn || !("speechSynthesis" in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = lang === "en-US" ? .82 : .94;
-    window.speechSynthesis.speak(utterance);
-  } catch { /* Text is always visible when speech is unavailable. */ }
+function audioFailure(error) {
+  const status = document.querySelector("#audio-status");
+  status.textContent = error?.name === "NotAllowedError"
+    ? "소리를 켜려면 화면 위 스피커를 눌러 주세요."
+    : "소리를 재생하지 못했어요. 다시 눌러 주세요.";
+  status.hidden = false;
+}
+function playClip(player, file, onended) {
+  if (!state.soundOn) return;
+  player.pause();
+  player.onended = onended || null;
+  player.src = `${AUDIO}${file}.mp3`;
+  player.currentTime = 0;
+  player.play().then(() => { document.querySelector("#audio-status").hidden = true; }).catch(error => {
+    audioFailure(error);
+    if (onended) onended();
+  });
+}
+function playMusic() {
+  if (state.soundOn && !document.hidden && audio.music.paused) {
+    audio.music.play().catch(audioFailure);
+  }
+}
+function playQuestion() {
+  playClip(audio.voice, `q-${session.subject}-${session.level * ROUND_SIZE + session.index}`);
+}
+function playEnglishChoice(choice, onended) {
+  const key = String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "");
+  playClip(audio.voice, `en-${key}`, onended);
+}
+function stopAudio() {
+  audio.voice.onended = null;
+  for (const player of Object.values(audio)) { player.pause(); player.currentTime = 0; }
 }
 
 function starSvg() {
@@ -186,6 +227,11 @@ function speakerSvg() {
 function avatar(className = "") {
   return `<img class="${className}" src="${ASSET}outfit-${state.outfit}.webp" alt="꾸민 모습의 별이" />`;
 }
+function art(id, className, decorative = false) {
+  return id in EMOJI_ART
+    ? `<span class="${className} emoji-art" ${decorative ? 'aria-hidden="true"' : `role="img" aria-label="${OBJECTS[id]}"`}>${EMOJI_ART[id]}</span>`
+    : `<img class="${className}" src="${ASSET}${id}.webp" alt="${decorative ? "" : OBJECTS[id]}" />`;
+}
 
 function renderHome() {
   const done = state.completedStages.length;
@@ -200,6 +246,7 @@ function renderHome() {
   return `<section class="home" aria-label="놀이 선택">
     <div class="home-left">
       <h1>오늘은 무엇을 배워볼까?</h1>
+      <p class="audio-hint">${state.soundOn ? "화면을 누르면 음악이 시작돼요 🎵" : "위쪽 스피커를 눌러 소리를 켜요 🔊"}</p>
       <div class="subject-list">${subjectCards}</div>
       <div class="home-progress" aria-label="끝낸 놀이 ${done}개 중 ${total}개">
         <span class="progress-copy">끝낸 놀이</span>
@@ -217,17 +264,24 @@ function renderHome() {
 
 function renderLevels() {
   const subject = SUBJECTS[session.subject];
-  const cards = LEVELS[session.subject].map((title, index) => {
+  const levels = LEVELS[session.subject];
+  const nextLevel = levels.findIndex((_, index) => !state.completedStages.includes(`${session.subject}:${index}`));
+  const cards = levels.map((title, index) => {
     const done = state.completedStages.includes(`${session.subject}:${index}`);
     return `<button class="level-card ${done ? "finished" : ""}" type="button" data-action="start" data-level="${index}" aria-label="${index + 1}단계 ${title} 시작">
       <span class="level-number">${index + 1}</span><span class="level-title">${title}</span>
       <span class="level-note">${done ? "완료 ✓" : "5문제 놀이 →"}</span>
     </button>`;
-  }).join("");
+  });
+  const sections = [0, 1, 2, 3].map(group => `<section class="level-group" aria-label="${group * 5 + 1}단계부터 ${group * 5 + 5}단계">
+    <h2>${group === 0 ? "시작하기" : group === 1 ? "익숙해지기" : group === 2 ? "한 걸음 더" : "도전하기"} <small>${group * 5 + 1}–${group * 5 + 5}단계</small></h2>
+    <div class="level-grid">${cards.slice(group * 5, group * 5 + 5).join("")}</div>
+  </section>`).join("");
   return `<section class="levels-screen" aria-label="${subject.label} 단계 고르기">
     <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div>
     <p class="levels-intro">5문제씩 골라서 놀자! ✨</p>
-    <div class="level-grid">${cards}</div>
+    <button class="primary-button continue-button" type="button" data-action="start" data-level="${nextLevel < 0 ? 0 : nextLevel}">${nextLevel < 0 ? "1단계 다시 놀기" : `${nextLevel + 1}단계 이어서 놀기`} →</button>
+    ${sections}
   </section>`;
 }
 
@@ -245,12 +299,12 @@ function renderGame() {
   const question = currentQuestion();
   let illustration = "";
   if (question.count) {
-    illustration = `<div class="count-objects" aria-hidden="true">${Array.from({ length: question.count }, () => `<img src="${ASSET}${question.object}.webp" alt="" />`).join("")}</div>`;
+    illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" aria-hidden="true">${Array.from({ length: question.count }, () => question.object ? art(question.object, "count-art", true) : '<i class="math-dot"></i>').join("")}</div>`;
   } else if (question.operator) {
     const dots = count => `<span class="dot-group">${Array.from({ length: count }, () => '<i class="math-dot"></i>').join("")}</span>`;
     illustration = `<div class="math-visual" aria-hidden="true">${dots(question.left)}<span class="math-symbol">${question.operator === "+" ? "+" : "−"}</span>${dots(question.right)}</div>`;
   } else if (question.object) {
-    illustration = `<img class="question-image" src="${ASSET}${question.object}.webp" alt="${OBJECTS[question.object]}" />`;
+    illustration = art(question.object, "question-image");
   } else if (question.color) {
     illustration = `<span class="color-swatch" style="--swatch:${question.color}" aria-hidden="true"></span>`;
   }
@@ -259,9 +313,9 @@ function renderGame() {
     const isNumber = typeof choice === "number";
     const artId = question.choiceKind === "picture" ? choice : null;
     const label = artId ? OBJECTS[choice] : choice;
-    const art = artId ? `<img class="choice-art" src="${ASSET}${artId}.webp" alt="" />` : "";
+    const picture = artId ? art(artId, "choice-art", true) : "";
     const response = session.answered && choice === question.answer ? "correct" : session.wrongChoice === choice ? "wrong" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${response}" type="button" data-action="answer" data-value="${choice}" ${session.answered ? "disabled" : ""} aria-label="${label}">${art}<span class="choice-word">${label}</span></button>`;
+    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${response}" type="button" data-action="answer" data-value="${choice}" ${session.answered ? "disabled" : ""} aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
   }).join("");
   const feedback = session.feedback
     ? `<p class="feedback-message ${session.answered ? "good" : ""}" role="status">${session.feedback}</p>`
@@ -311,7 +365,7 @@ function render() {
   document.querySelector("#star-count").textContent = state.stars;
   const soundButton = document.querySelector("#sound-toggle");
   soundButton.setAttribute("aria-pressed", String(state.soundOn));
-  soundButton.setAttribute("aria-label", state.soundOn ? "소리 끄기" : "소리 켜기");
+  soundButton.setAttribute("aria-label", state.soundOn ? "모든 소리 끄기" : "모든 소리 켜기");
   app.innerHTML = session.view === "home" ? renderHome() : session.view === "levels" ? renderLevels() : session.view === "game" ? renderGame() : session.view === "wardrobe" ? renderWardrobe() : renderResult();
 }
 
@@ -335,25 +389,27 @@ function start(level) {
   session.wrongChoice = null;
   session.feedback = "";
   go("game");
-  speak(currentQuestion().prompt);
+  playQuestion();
 }
 
 function answer(value) {
   if (session.view !== "game" || session.answered) return;
   const question = currentQuestion();
-  const choice = session.subject === "math" ? Number(value) : value;
-  if (session.subject === "english") speak(choice.toLowerCase(), "en-US");
+  const choice = typeof question.answer === "number" ? Number(value) : value;
   if (gradeAnswer(question, choice)) {
     session.answered = true;
     session.wrongChoice = null;
     session.feedback = "정답이야! 별 하나 반짝! ✨";
     state.stars += 1;
     save();
-    if (session.subject !== "english") speak("정답이야! 정말 잘했어!");
+    playClip(audio.effect, "applause");
+    if (session.subject === "english") playEnglishChoice(choice, () => playClip(audio.voice, "praise"));
+    else playClip(audio.voice, "praise");
   } else {
     session.wrongChoice = choice;
     session.feedback = "괜찮아! 다시 한번 찾아보자.";
-    if (session.subject !== "english") speak("괜찮아, 다시 찾아보자.");
+    if (session.subject === "english") playEnglishChoice(choice);
+    else playClip(audio.voice, "retry");
   }
   render();
 }
@@ -365,7 +421,7 @@ function next() {
     if (!state.completedStages.includes(stageId)) state.completedStages.push(stageId);
     save();
     go("result");
-    speak("우와, 다 해냈어! 정말 멋져!");
+    playClip(audio.voice, "complete");
     return;
   }
   session.index += 1;
@@ -373,16 +429,18 @@ function next() {
   session.wrongChoice = null;
   session.feedback = "";
   render();
-  speak(currentQuestion().prompt);
+  playQuestion();
 }
 
 if (typeof document !== "undefined") {
   render();
   document.querySelector("#sound-toggle").addEventListener("click", () => {
     state.soundOn = !state.soundOn;
-    if (!state.soundOn && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (!state.soundOn) stopAudio();
     save(); render();
   });
+  document.addEventListener("click", playMusic);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopAudio(); });
   document.querySelector(".brand").addEventListener("click", () => go("home"));
   document.querySelector("#app").addEventListener("click", event => {
     const button = event.target.closest("button[data-action]");
@@ -396,7 +454,7 @@ if (typeof document !== "undefined") {
       case "next": next(); break;
       case "next-level": start(session.level + 1); break;
       case "replay": start(session.level); break;
-      case "speak-question": speak(currentQuestion().prompt); break;
+      case "speak-question": playQuestion(); break;
       case "outfit":
         if (OUTFITS.some(item => item.id === button.dataset.value)) { state.outfit = button.dataset.value; save(); render(); }
         break;
