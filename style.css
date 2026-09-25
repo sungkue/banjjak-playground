@@ -81,6 +81,9 @@ img { display: block; max-width: 100%; }
 .age-switch button { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-height: 64px; padding: 8px 12px; border: 3px solid white; border-radius: 25px; background: rgba(255,255,255,.88); color: var(--ink); box-shadow: var(--shadow); font-size: clamp(19px, 2vw, 27px); line-height: 1.1; }
 .age-switch small { margin-top: 3px; color: #685188; font-size: .72em; }
 .age-switch button[aria-pressed="true"] { border-color: #ff758c; background: #ffe0e7; }
+.age-switch button:disabled { cursor: default; background: rgba(236,230,246,.85); color: #766b87; box-shadow: none; }
+.age-switch button:disabled small { color: #766b87; }
+.unlock-hint { margin: -6px 0 15px; color: #654f87; font-size: 20px; line-height: 1.25; }
 .subject-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .subject-tile {
   position: relative;
@@ -131,6 +134,8 @@ img { display: block; max-width: 100%; }
 .level-card:nth-child(3n+3) { background: #ffebae; }
 .level-card:hover { transform: translateY(-5px); }
 .level-card.finished { border-color: #61cda0; }
+.level-card.locked { cursor: default; border-color: #e4dfeb; background: rgba(239,236,244,.88); color: #71677c; box-shadow: none; }
+.level-card.locked:hover { transform: none; }
 .level-number { display: grid; place-items: center; width: 49px; height: 49px; border-radius: 50%; background: white; font-size: 28px; }
 .level-title { margin-top: 13px; font-size: 35px; line-height: 1.1; }
 .level-note { margin-top: auto; color: #665286; font-size: 23px; }
@@ -204,8 +209,12 @@ img { display: block; max-width: 100%; }
 .choice-word { display: grid; place-items: center; width: 100%; min-height: 81px; border-radius: 50px; background: rgba(255,255,255,.84); font-size: clamp(32px, 3.6vw, 51px); line-height: 1; white-space: nowrap; }
 .choice-card.number { justify-content: center; height: clamp(190px, 29vh, 275px); }
 .choice-card.number .choice-word { width: 70%; min-height: 130px; font-size: 88px; }
+.choice-card.number.triple-number .choice-word { width: 100%; font-size: 56px; }
 .choice-card.text { justify-content: center; height: clamp(185px, 29vh, 265px); }
 .choice-card.text .choice-word { min-height: 105px; padding: 8px; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+.choice-grid.long-choices { grid-template-columns: 1fr; }
+.choice-grid.long-choices .choice-card.text { height: auto; min-height: 82px; padding: 7px 14px; }
+.choice-grid.long-choices .choice-word { min-height: 60px; overflow-wrap: normal; font-size: clamp(21px, 2.8vw, 34px); }
 .choice-card.long-word .choice-word { font-size: clamp(16px, 2vw, 30px); overflow-wrap: normal; }
 .feedback-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 105px; margin-top: 24px; }
 .feedback-message { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; margin: 0; padding: 15px 21px; border: 3px solid rgba(255,255,255,.91); border-radius: 30px; background: rgba(255,255,255,.91); color: #614991; box-shadow: 0 6px 15px rgba(95,65,146,.09); line-height: 1.2; }
@@ -253,6 +262,7 @@ img { display: block; max-width: 100%; }
 .result-copy > svg { display: block; width: 115px; height: 115px; margin: 0 auto 6px; filter: drop-shadow(0 6px 0 rgba(246,177,54,.25)); }
 .result h1 { margin: 0 0 10px; font-size: clamp(42px, 5vw, 70px); font-weight: 400; }
 .result p { margin: 0 0 25px; font-size: 30px; color: #69528e; }
+.result .result-unlock { font-size: 24px; }
 .result-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
 .result-actions .primary-button { min-height: 65px; font-size: 27px; }
 .result-actions .back-button { min-height: 65px; }
@@ -352,6 +362,8 @@ img { display: block; max-width: 100%; }
   .subject-list { grid-template-columns: 1fr; gap: 12px; }
   .age-switch { gap: 7px; margin-bottom: 13px; }
   .age-switch button { min-height: 58px; padding: 7px 6px; border-radius: 20px; font-size: clamp(18px, 4.7vw, 22px); }
+  .age-switch button small { font-size: 13px; }
+  .unlock-hint { font-size: 16px; }
   .subject-tile { flex-direction: row; height: 128px; padding: 8px 15px; border-radius: 27px; }
   .subject-art { width: 112px; height: 110px; margin: 0 4px 0 0; }
   .subject-name { flex: 1; min-height: 75px; font-size: 39px; }
@@ -401,8 +413,11 @@ img { display: block; max-width: 100%; }
   .choice-word { min-height: 50px; font-size: clamp(21px, 5.8vw, 31px); }
   .choice-card.number { height: 155px; }
   .choice-card.number .choice-word { min-height: 95px; font-size: 60px; }
+  .choice-card.number.triple-number .choice-word { font-size: 40px; }
   .choice-card.text { height: 165px; }
   .choice-card.text .choice-word { min-height: 90px; font-size: clamp(19px, 5.2vw, 28px); }
+  .choice-grid.long-choices .choice-card.text { min-height: 74px; }
+  .choice-grid.long-choices .choice-word { font-size: 22px; }
   .choice-card.long-word .choice-word { font-size: 16px; overflow-wrap: normal; }
   .feedback-row { align-items: stretch; flex-direction: column; gap: 10px; margin-top: 14px; }
   .feedback-message { gap: 8px; padding: 10px 12px; }

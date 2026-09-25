@@ -1,5 +1,6 @@
 import { EMOJI_ART, EXTRA_LEVELS, EXTRA_OBJECTS, EXTRA_QUESTIONS } from "./extra-content.js?v=2";
 import { EXPANDED_CONTENT, MORE_OBJECTS, MORE_EMOJI_ART } from "./expanded-content.js?v=5";
+import { EIGHT_CONTENT } from "./eight-content.js?v=1";
 
 const ASSET = "./assets/";
 const AUDIO = "./audio/";
@@ -21,6 +22,8 @@ const SUBJECTS = {
   english: { label: "영어", title: "영어 놀이", art: "subject-english" },
 };
 const ROUND_SIZE = 5;
+const AGE_NAMES = { six: "기본 놀이", seven: "7살 도전", eight: "8살 도전" };
+const AGE_STAR_GATE = { six: 0, seven: 75, eight: 200 };
 export const LEVELS = {
   hangul: ["첫소리 1", "첫소리 2", "그림 낱말", "빈칸 채우기", "첫 글자", "끝 글자"],
   math: ["1~5 세기", "6~10 세기", "더하기 1", "더하기 2", "빼기", "수의 순서"],
@@ -139,11 +142,37 @@ for (const subject of Object.keys(LEVELS)) {
   LEVELS[subject].push(...EXPANDED_CONTENT.six.levels[subject]);
   QUESTIONS[subject].push(...EXPANDED_CONTENT.six.questions[subject]);
 }
-export const AGE_LEVELS = { six: LEVELS, seven: EXPANDED_CONTENT.seven.levels };
-export const AGE_QUESTIONS = { six: QUESTIONS, seven: EXPANDED_CONTENT.seven.questions };
+export const AGE_LEVELS = { six: LEVELS, seven: EXPANDED_CONTENT.seven.levels, eight: EIGHT_CONTENT.levels };
+export const AGE_QUESTIONS = { six: QUESTIONS, seven: EXPANDED_CONTENT.seven.questions, eight: EIGHT_CONTENT.questions };
 const levelsFor = () => AGE_LEVELS[session.age][session.subject];
 const questionsFor = () => AGE_QUESTIONS[session.age][session.subject];
-const stageId = (subject, index, age) => `${age === "seven" ? "seven:" : ""}${subject}:${index}`;
+const stageId = (subject, index, age) => `${age === "six" ? "" : `${age}:`}${subject}:${index}`;
+const questionId = (subject, index, age) => `${age}:${subject}:${index}`;
+const completedInAge = (age, progress) => progress.completedStages.filter(id =>
+  Object.entries(AGE_LEVELS[age]).some(([subject, levels]) => levels.some((_, index) => id === stageId(subject, index, age)))).length;
+
+export function ageUnlocked(age, progress) {
+  if (!Object.hasOwn(AGE_STAR_GATE, age) || progress.stars < AGE_STAR_GATE[age]) return false;
+  if (age === "seven") return Object.keys(SUBJECTS).some(subject => progress.completedStages.includes(stageId(subject, 9, "six")));
+  if (age === "eight") return ageUnlocked("seven", progress) && Object.keys(SUBJECTS).some(subject => progress.completedStages.includes(stageId(subject, 14, "seven")));
+  return true;
+}
+
+export function stageUnlocked(age, subject, index, progress) {
+  if (!AGE_LEVELS[age]?.[subject]?.[index]) return false;
+  if (progress.completedStages.includes(stageId(subject, index, age))) return true;
+  return ageUnlocked(age, progress) && (!index || progress.completedStages.includes(stageId(subject, index - 1, age)))
+    && progress.stars >= AGE_STAR_GATE[age] + index * ROUND_SIZE;
+}
+
+function unlockNote(age, progress) {
+  const missing = AGE_STAR_GATE[age] - progress.stars;
+  if (missing > 0) return `별 ${missing}개 더`;
+  if (age === "seven") return "기본 놀이 10단계 완료";
+  if (age === "eight" && !ageUnlocked("seven", progress)) return "7살 도전 먼저 열기";
+  if (age === "eight") return "7살 도전 15단계 완료";
+  return "";
+}
 
 export function gradeAnswer(question, choice) {
   return question.options.includes(choice) && choice === question.answer;
@@ -198,6 +227,9 @@ function answerHint(question, subject) {
     if (prompt.includes("끝 글자") || prompt.includes("받침")) return "낱말의 끝을 천천히 읽어 봐.";
     if (prompt.includes("□")) return "빈칸 앞뒤를 이어 읽어 봐.";
     if (prompt.includes("반대말")) return "반대되는 모습을 떠올려 봐.";
+    if (prompt.includes("비슷한 말")) return "같은 느낌을 나타내는 말을 떠올려 봐.";
+    if (prompt.includes("바르게 쓴")) return "글자 모양을 하나씩 비교해 봐.";
+    if (prompt.includes("띄어 쓴")) return "낱말 사이의 빈칸을 살펴봐.";
     if (question.object) return "그림 이름을 소리 내어 말해 봐.";
     if (prompt.includes("누가") || prompt.includes("누구")) return "문장에서 누가 했는지 다시 찾아봐.";
     if (prompt.includes("어디")) return "문장에서 장소를 다시 찾아봐.";
@@ -205,6 +237,8 @@ function answerHint(question, subject) {
   }
   if (subject === "math") {
     if (question.count) return "그림을 손가락으로 하나씩 짚어 세어 봐.";
+    if (question.equation && (question.equation.match(/[+−]/g) || []).length >= 2) return "앞의 두 수를 먼저 계산하고, 마지막 수를 더하거나 빼 봐.";
+    if (question.operator && question.left > 10) return "십의 자리와 일의 자리를 나누어 계산해 봐.";
     if (question.operator === "+") return "왼쪽 수에서 시작해 오른쪽 수만큼 더 세어 봐.";
     if (question.operator === "-") return "왼쪽 수에서 오른쪽 수만큼 거꾸로 세어 봐.";
     if (question.equation?.includes("□")) return "빈칸에 수를 넣어 계산이 맞는지 봐.";
@@ -213,7 +247,9 @@ function answerHint(question, subject) {
     if (prompt.includes("모서리")) return "모양의 뾰족한 곳을 하나씩 세어 봐.";
     if (prompt.includes("변이")) return "모양의 곧은 선을 하나씩 세어 봐.";
     if (prompt.includes("짧은 바늘")) return "시계의 짧은 바늘이 가리키는 수를 찾아봐.";
-    if (prompt.includes("십의 자리")) return "십의 자리와 일의 자리를 나누어 봐.";
+    if (prompt.includes("동전")) return "100원과 50원을 각각 세어 더해 봐.";
+    if (prompt.includes("cm")) return "길이를 빼야 하는지 비교해야 하는지 살펴봐.";
+    if (prompt.includes("십의 자리") || prompt.includes("백의 자리")) return "백, 십, 일의 자리를 나누어 봐.";
     return "수와 모양의 규칙을 다시 살펴봐.";
   }
   if (prompt.includes("첫 알파벳")) return "영어 단어 맨 앞 글자를 찾아봐.";
@@ -240,7 +276,7 @@ export function answerFeedback(question, subject, choice, wrongAttempts, already
 }
 
 function loadSaved() {
-  const fallback = { stars: 0, completedStages: [], age: "six", outfit: "flower", scene: "room", soundOn: true };
+  const fallback = { stars: 0, completedStages: [], earnedQuestions: [], age: "six", outfit: "flower", scene: "room", soundOn: true };
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     if (!raw || typeof raw !== "object") return fallback;
@@ -248,19 +284,32 @@ function loadSaved() {
       ? raw.completedStages.filter(id => Object.entries(AGE_LEVELS).some(([age, subjects]) =>
         Object.entries(subjects).some(([subject, levels]) => levels.some((_, index) => id === stageId(subject, index, age)))))
       : Array.isArray(raw.completed) ? raw.completed.filter(id => id in SUBJECTS).map(id => `${id}:0`) : [];
-    return {
+    const earnedQuestions = Array.isArray(raw.earnedQuestions)
+      ? raw.earnedQuestions.filter(id => typeof id === "string")
+      : completedStages.flatMap(id => {
+        for (const age of Object.keys(AGE_LEVELS)) for (const subject of Object.keys(SUBJECTS)) {
+          const prefix = age === "six" ? `${subject}:` : `${age}:${subject}:`;
+          if (id.startsWith(prefix)) return Array.from({ length: ROUND_SIZE }, (_, index) =>
+            questionId(subject, Number(id.slice(prefix.length)) * ROUND_SIZE + index, age));
+        }
+        return [];
+      });
+    const saved = {
       stars: Number.isSafeInteger(raw.stars) && raw.stars >= 0 ? raw.stars : 0,
       completedStages: [...new Set(completedStages)],
-      age: raw.age === "seven" ? "seven" : "six",
+      earnedQuestions: [...new Set(earnedQuestions)],
+      age: Object.hasOwn(AGE_LEVELS, raw.age) ? raw.age : "six",
       outfit: OUTFITS.some(item => item.id === raw.outfit) ? raw.outfit : "flower",
       scene: SCENES.some(item => item.id === raw.scene) ? raw.scene : "room",
       soundOn: typeof raw.soundOn === "boolean" ? raw.soundOn : true,
     };
+    if (!ageUnlocked(saved.age, saved)) saved.age = "six";
+    return saved;
   } catch { return fallback; }
 }
 
 const state = typeof document === "undefined" ? null : loadSaved();
-const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
+const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, newStars: 0, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
 const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
 const PRAISE_VOICES = ["praise", "praise-1", "praise-2", "praise-3"];
 const RETRY_VOICES = ["retry", "retry-1", "retry-2"];
@@ -305,7 +354,7 @@ function playMusic() {
   }
 }
 function playQuestion() {
-  playClip(audio.voice, `q-${session.age === "seven" ? "seven-" : ""}${session.subject}-${session.level * ROUND_SIZE + session.index}`);
+  playClip(audio.voice, `q-${session.age === "six" ? "" : `${session.age}-`}${session.subject}-${session.level * ROUND_SIZE + session.index}`);
 }
 function playEnglishChoice(choice, onended) {
   const key = String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "");
@@ -338,20 +387,26 @@ function art(id, className, decorative = false) {
 }
 
 function renderHome() {
-  const done = state.completedStages.filter(id => session.age === "seven" ? id.startsWith("seven:") : !id.startsWith("seven:")).length;
+  const done = completedInAge(session.age, state);
   const total = Object.values(AGE_LEVELS[session.age]).reduce((sum, levels) => sum + levels.length, 0);
   const subjectCards = Object.entries(SUBJECTS).map(([id, subject]) => `
     <button class="subject-tile ${id}" type="button" data-action="levels" data-subject="${id}" aria-label="${subject.label} 놀이 고르기">
       <img class="subject-art" src="${ASSET}${subject.art}.webp" alt="" />
       <span class="subject-name">${subject.label}</span>
-      <span class="subject-count">${state.completedStages.filter(stage => stage.startsWith(`${session.age === "seven" ? "seven:" : ""}${id}:`)).length} / ${AGE_LEVELS[session.age][id].length}</span>
+      <span class="subject-count">${AGE_LEVELS[session.age][id].filter((_, index) => state.completedStages.includes(stageId(id, index, session.age))).length} / ${AGE_LEVELS[session.age][id].length}</span>
       <span class="subject-arrow" aria-hidden="true">→</span>
     </button>`).join("");
+  const ages = Object.keys(AGE_LEVELS).map(age => {
+    const locked = !ageUnlocked(age, state);
+    return `<button type="button" data-action="age" data-age="${age}" aria-pressed="${session.age === age}" ${locked ? "disabled" : ""} aria-label="${AGE_NAMES[age]}${locked ? ` 잠김, ${unlockNote(age, state)}` : ""}"><span>${AGE_NAMES[age]}</span><small>${locked ? `🔒 ${unlockNote(age, state)}` : "500문제"}</small></button>`;
+  }).join("");
+  const nextAge = session.age === "six" ? "seven" : session.age === "seven" ? "eight" : null;
   return `<section class="home" aria-label="놀이 선택">
     <div class="home-left">
       <h1>오늘은 무엇을 배워볼까?</h1>
       <p class="audio-hint">${state.soundOn ? "화면을 누르면 음악이 시작돼요 🎵" : "위쪽 스피커를 눌러 소리를 켜요 🔊"}</p>
-      <div class="age-switch" role="group" aria-label="놀이 난이도"><button type="button" data-action="age" data-age="six" aria-pressed="${session.age === "six"}"><span>기본 놀이</span><small>500문제</small></button><button type="button" data-action="age" data-age="seven" aria-pressed="${session.age === "seven"}"><span>7살 도전</span><small>500문제</small></button></div>
+      <div class="age-switch" role="group" aria-label="놀이 난이도">${ages}</div>
+      ${nextAge && !ageUnlocked(nextAge, state) ? `<p class="unlock-hint">다음 도전은 별 ${AGE_STAR_GATE[nextAge]}개와 ${nextAge === "seven" ? "기본 놀이 10단계" : "7살 도전 15단계"}를 끝내면 열려요.</p>` : ""}
       <div class="subject-list">${subjectCards}</div>
       <div class="home-progress" aria-label="끝낸 놀이 ${done}개 중 ${total}개">
         <span class="progress-copy">끝낸 놀이</span>
@@ -370,12 +425,15 @@ function renderHome() {
 function renderLevels() {
   const subject = SUBJECTS[session.subject];
   const levels = levelsFor();
-  const nextLevel = levels.findIndex((_, index) => !state.completedStages.includes(stageId(session.subject, index, session.age)));
+  const nextLevel = levels.findIndex((_, index) => !state.completedStages.includes(stageId(session.subject, index, session.age)) && stageUnlocked(session.age, session.subject, index, state));
+  const allDone = levels.every((_, index) => state.completedStages.includes(stageId(session.subject, index, session.age)));
   const cards = levels.map((title, index) => {
     const done = state.completedStages.includes(stageId(session.subject, index, session.age));
-    return `<button class="level-card ${done ? "finished" : ""}" type="button" data-action="start" data-level="${index}" aria-label="${index + 1}단계 ${title} 시작">
+    const locked = !stageUnlocked(session.age, session.subject, index, state);
+    const note = done ? "완료 ✓" : locked ? !state.completedStages.includes(stageId(session.subject, index - 1, session.age)) ? "🔒 앞 단계부터" : `🔒 별 ${AGE_STAR_GATE[session.age] + index * ROUND_SIZE - state.stars}개 더` : "5문제 놀이 →";
+    return `<button class="level-card ${done ? "finished" : ""} ${locked ? "locked" : ""}" type="button" data-action="start" data-level="${index}" ${locked ? "disabled" : ""} aria-label="${index + 1}단계 ${title} ${note}">
       <span class="level-number">${index + 1}</span><span class="level-title">${title}</span>
-      <span class="level-note">${done ? "완료 ✓" : "5문제 놀이 →"}</span>
+      <span class="level-note">${note}</span>
     </button>`;
   });
   const sections = Array.from({ length: Math.ceil(levels.length / 5) }, (_, group) => `<section class="level-group" aria-label="${group * 5 + 1}단계부터 ${Math.min(group * 5 + 5, levels.length)}단계">
@@ -383,9 +441,9 @@ function renderLevels() {
     <div class="level-grid">${cards.slice(group * 5, group * 5 + 5).join("")}</div>
   </section>`).join("");
   return `<section class="levels-screen" aria-label="${subject.label} 단계 고르기">
-    <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div><p class="age-caption">${session.age === "seven" ? "7살 도전" : "기본 놀이"} · ${levels.length * ROUND_SIZE}문제</p>
-    <p class="levels-intro">5문제씩 골라서 놀자! ✨</p>
-    <button class="primary-button continue-button" type="button" data-action="start" data-level="${nextLevel < 0 ? 0 : nextLevel}">${nextLevel < 0 ? "1단계 다시 놀기" : `${nextLevel + 1}단계 이어서 놀기`} →</button>
+    <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div><p class="age-caption">${AGE_NAMES[session.age]} · ${levels.length * ROUND_SIZE}문제</p>
+    <p class="levels-intro">별을 모으고 앞 단계를 끝내면 다음 단계가 열려요 ✨</p>
+    <button class="primary-button continue-button" type="button" data-action="${nextLevel < 0 && !allDone ? "home" : "start"}" data-level="${nextLevel < 0 ? 0 : nextLevel}">${nextLevel < 0 ? allDone ? "1단계 다시 놀기" : "다른 놀이에서 별 모으기" : `${nextLevel + 1}단계 이어서 놀기`} →</button>
     ${sections}
   </section>`;
 }
@@ -405,7 +463,7 @@ function renderGame() {
   let illustration = "";
   if (question.count) {
     illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" role="img" aria-label="${question.count}개의 ${question.object ? OBJECTS[question.object] : "점"}">${Array.from({ length: question.count }, () => question.object ? art(question.object, "count-art", true) : '<i class="math-dot"></i>').join("")}</div>`;
-  } else if (question.operator) {
+  } else if (question.operator && question.left <= 10 && question.right <= 10) {
     const dots = count => `<span class="dot-group">${Array.from({ length: count }, () => '<i class="math-dot"></i>').join("")}</span>`;
     illustration = `<div class="math-visual" aria-hidden="true">${dots(question.left)}<span class="math-symbol">${question.operator === "+" ? "+" : "−"}</span>${dots(question.right)}</div>`;
   } else if (question.object) {
@@ -422,17 +480,17 @@ function renderGame() {
     const isWrong = session.answered ? session.wrongChoice === choice : session.wrongChoices.includes(choice);
     const response = session.answered && choice === question.answer ? "correct" : isWrong ? "wrong" : !session.answered && session.wrongChoices.length >= 2 && choice === question.answer ? "answer-hint" : "";
     const mark = response === "correct" ? "✓" : response === "answer-hint" ? "💡" : response === "wrong" ? "↻" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>`;
+    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${isNumber && String(label).length >= 3 ? "triple-number" : ""} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>`;
   }).join("");
-  const response = session.feedback || { kind: "idle", title: question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" };
+  const response = session.feedback || { kind: "idle", title: question.operator && question.left > 10 ? "차근차근 계산해 보자!" : question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" };
   const icon = { idle: "👀", good: "✨", hint: "💡", reveal: "🔎", explore: "🌱" }[response.kind];
   const feedback = `<div class="feedback-message ${response.kind}" role="status"><span class="feedback-icon" aria-hidden="true">${icon}</span>${avatar("feedback-avatar", true)}<span class="feedback-copy"><strong>${response.title}</strong>${response.detail ? `<span>${response.detail}</span>` : ""}</span></div>`;
   return `<section class="game-screen" aria-label="${subject.title}">
-    <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "seven" ? "7살 도전 · " : ""}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
+    <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "six" ? "" : `${AGE_NAMES[session.age]} · `}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
     <div class="game-layout">
       <div class="game-main">
         <div class="question-panel ${question.prompt.length > 38 ? "long-question" : ""}"><div class="question-content"><span class="question-text">${question.prompt}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
-        <div class="choice-grid">${choices}</div>
+        <div class="choice-grid ${question.options.some(choice => String(choice).length > 18) ? "long-choices" : ""}">${choices}</div>
         <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
       </div>
       <div class="game-side">${avatar("game-avatar")}<div class="game-speech">${session.feedback?.title || "천천히 골라봐! ♥"}</div></div>
@@ -459,9 +517,13 @@ function renderWardrobe() {
 }
 
 function renderResult() {
+  const nextLevel = session.level + 1;
+  const hasNext = nextLevel < levelsFor().length;
+  const nextOpen = hasNext && stageUnlocked(session.age, session.subject, nextLevel, state);
   return `<section class="result" aria-label="놀이 완료"><div class="result-panel">
-    <div class="result-copy">${starSvg()}<h1>우와, 다 해냈어!</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! 반짝 별 5개를 모았어.</p>
-      <div class="result-actions">${session.level + 1 < levelsFor().length ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
+    <div class="result-copy">${starSvg()}<h1>우와, 다 해냈어!</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! ${session.newStars ? `새로운 반짝 별 ${session.newStars}개를 모았어.` : "다시 풀며 연습했어."}</p>
+      ${hasNext && !nextOpen ? `<p class="result-unlock">다음 단계는 별 ${AGE_STAR_GATE[session.age] + nextLevel * ROUND_SIZE - state.stars}개를 더 모으면 열려요.</p>` : ""}
+      <div class="result-actions">${nextOpen ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
     </div>${avatar("result-avatar")}
   </div></section>`;
 }
@@ -483,15 +545,16 @@ function go(view) {
 }
 
 function openLevels(subject) {
-  if (!(subject in SUBJECTS)) return;
+  if (!(subject in SUBJECTS) || !ageUnlocked(session.age, state)) return;
   session.subject = subject;
   go("levels");
 }
 
 function start(level) {
-  if (!session.subject || !Number.isInteger(level) || level < 0 || level >= levelsFor().length) return;
+  if (!session.subject || !Number.isInteger(level) || !stageUnlocked(session.age, session.subject, level, state)) return;
   session.level = level;
   session.index = 0;
+  session.newStars = 0;
   session.answered = false;
   session.wrongChoice = null;
   session.wrongChoices = [];
@@ -505,8 +568,10 @@ function answer(value) {
   const question = currentQuestion();
   const choice = typeof question.answer === "number" ? Number(value) : value;
   if (!question.options.includes(choice)) return;
-  const variation = session.level * ROUND_SIZE + session.index + (session.age === "seven" ? 500 : 0);
-  const { correct, awardStar } = answerProgress(question, choice, session.answered);
+  const questionIndex = session.level * ROUND_SIZE + session.index;
+  const variation = questionIndex + (session.age === "six" ? 0 : session.age === "seven" ? 500 : 1000);
+  const earnedId = questionId(session.subject, questionIndex, session.age);
+  const { correct, awardStar } = answerProgress(question, choice, session.answered || state.earnedQuestions.includes(earnedId));
   if (correct && session.answered) {
     session.wrongChoice = null;
     session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation);
@@ -521,9 +586,11 @@ function answer(value) {
     session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation);
     if (awardStar) {
       state.stars += 1;
+      state.earnedQuestions.push(earnedId);
+      session.newStars += 1;
       save();
-      playClip(audio.effect, CORRECT_EFFECTS[variation % CORRECT_EFFECTS.length]);
     }
+    playClip(audio.effect, CORRECT_EFFECTS[variation % CORRECT_EFFECTS.length]);
     const praise = session.wrongChoices.length ? "praise-3" : PRAISE_VOICES[variation % PRAISE_VOICES.length];
     if (session.subject === "english") playEnglishChoice(choice, () => playClip(audio.voice, praise));
     else playClip(audio.voice, praise);
@@ -576,7 +643,7 @@ if (typeof document !== "undefined") {
     if (!button) return;
     switch (button.dataset.action) {
       case "age":
-        if (button.dataset.age in AGE_LEVELS) { session.age = button.dataset.age; state.age = session.age; save(); render(); }
+        if (ageUnlocked(button.dataset.age, state)) { session.age = button.dataset.age; state.age = session.age; save(); render(); }
         break;
       case "home": go("home"); break;
       case "wardrobe": go("wardrobe"); break;

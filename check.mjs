@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback } from "./app.js";
+import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback, ageUnlocked, stageUnlocked } from "./app.js";
 import { EMOJI_ART } from "./extra-content.js";
 import { MORE_EMOJI_ART } from "./expanded-content.js";
 
@@ -28,12 +28,12 @@ for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
         const feedback = answerFeedback(question, subject, choice, attempts, false, index);
         assert.ok(feedback.detail && !feedback.detail.includes("undefined"), `${age}/${subject}/${index}: feedback`);
       }
-      assert.ok(soundExists(`q-${age === "seven" ? "seven-" : ""}${subject}-${index}`), `${age}/${subject}/${index}: narration`);
+      assert.ok(soundExists(`q-${age === "six" ? "" : `${age}-`}${subject}-${index}`), `${age}/${subject}/${index}: narration`);
       if (question.object) assert.ok(artExists(question.object), `${age}/${subject}/${index}: art`);
       if (question.choiceKind === "picture") for (const choice of question.options) assert.ok(artExists(choice), `${age}/${subject}/${index}: choice art`);
       if (question.count) assert.equal(question.count, question.answer);
       if (question.operator) assert.equal(question.operator === "+" ? question.left + question.right : question.left - question.right, question.answer);
-      if (subject === "math" && typeof question.answer === "number") assert.ok(question.answer >= 0 && question.answer <= 100);
+      if (subject === "math" && typeof question.answer === "number") assert.ok(question.answer >= 0 && question.answer <= (age === "eight" ? 1000 : 100));
       if (subject === "english") for (const choice of question.options) assert.ok(soundExists(englishFile(choice)), `${age}/english/${index}: ${choice} sound`);
     }
   }
@@ -48,4 +48,30 @@ assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /가�
 assert.match(answerFeedback(example, "hangul", example.answer, 1, false).detail, /가방/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.math[0], "math", 11, 0, false).detail, /2 \+ 9 = 11/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.english[30], "english", "strawberry", 0, false).detail, /딸기/);
-console.log("1,000문제, 200단계, 정답·그림·소리 확인 완료");
+const twoStep = AGE_QUESTIONS.eight.math[140];
+assert.match(answerFeedback(twoStep, "math", twoStep.options.find(choice => choice !== twoStep.answer), 1, false).detail, /앞의 두 수/);
+const progress = { stars: 0, completedStages: [] };
+assert.equal(ageUnlocked("__proto__", progress), false);
+assert.equal(stageUnlocked("six", "hangul", 0, progress), true);
+assert.equal(stageUnlocked("six", "hangul", 1, progress), false);
+progress.stars = 5;
+progress.completedStages.push("hangul:0");
+assert.equal(stageUnlocked("six", "hangul", 1, progress), true);
+progress.stars = 74;
+progress.completedStages.push("hangul:9");
+assert.equal(ageUnlocked("seven", progress), false);
+progress.stars = 75;
+assert.equal(ageUnlocked("seven", progress), true);
+assert.equal(stageUnlocked("seven", "math", 0, progress), true);
+progress.stars = 199;
+progress.completedStages.push("seven:math:14");
+assert.equal(ageUnlocked("eight", progress), false);
+progress.stars = 200;
+assert.equal(ageUnlocked("eight", progress), true);
+assert.equal(ageUnlocked("eight", { stars: 200, completedStages: ["seven:math:14"] }), false);
+assert.equal(stageUnlocked("eight", "english", 0, progress), true);
+assert.equal(stageUnlocked("eight", "english", 1, progress), false);
+progress.stars = 205;
+progress.completedStages.push("eight:english:0");
+assert.equal(stageUnlocked("eight", "english", 1, progress), true);
+console.log("1,500문제, 300단계, 잠금·정답·그림·소리 확인 완료");
