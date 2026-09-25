@@ -1,36 +1,41 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { LEVELS, QUESTIONS, gradeAnswer, answerProgress } from "./app.js";
+import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress } from "./app.js";
 import { EMOJI_ART } from "./extra-content.js";
+import { MORE_EMOJI_ART } from "./expanded-content.js";
 
-const artExists = id => id in EMOJI_ART || existsSync(new URL(`./assets/${id}.webp`, import.meta.url));
+const artExists = id => id in EMOJI_ART || id in MORE_EMOJI_ART || existsSync(new URL(`./assets/${id}.webp`, import.meta.url));
 const soundExists = name => existsSync(new URL(`./audio/${name}.mp3`, import.meta.url));
+const englishFile = choice => `en-${String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}`;
+const counts = { hangul: 170, math: 165, english: 165 };
+const seen = new Set();
 
-for (const [subject, round] of Object.entries(QUESTIONS)) {
-  assert.equal(LEVELS[subject].length, 20, `${subject}: 20단계`);
-  assert.equal(round.length, 100, `${subject}: 100문제`);
-  for (const [index, question] of round.entries()) {
-    assert.equal(question.options.length, 3);
-    assert.equal(new Set(question.options).size, 3);
-    assert.ok(question.options.includes(question.answer));
-    assert.ok(gradeAnswer(question, question.answer));
-    assert.ok(question.options.filter(choice => gradeAnswer(question, choice)).length === 1);
-    assert.ok(soundExists(`q-${subject}-${index}`), `${subject} ${index + 1}: 안내 음성`);
-    if (question.object) assert.ok(artExists(question.object), `${subject} ${index + 1}: 그림`);
-    if (question.choiceKind === "picture") {
-      for (const choice of question.options) assert.ok(artExists(choice), `${subject} ${index + 1}: 선택 그림`);
-    }
-    if (question.count) assert.equal(question.count, question.answer);
-    if (question.operator) assert.equal(question.operator === "+" ? question.left + question.right : question.left - question.right, question.answer);
-    if (subject === "math" && typeof question.answer === "number") assert.ok(question.answer >= 1 && question.answer <= 20);
-    if (subject === "english") for (const choice of question.options) {
-      assert.ok(soundExists(`en-${String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}`));
+for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
+  for (const [subject, questions] of Object.entries(subjects)) {
+    assert.equal(questions.length, counts[subject], `${age}/${subject}: question count`);
+    assert.equal(AGE_LEVELS[age][subject].length * 5, questions.length, `${age}/${subject}: five per level`);
+    for (const [index, question] of questions.entries()) {
+      const key = JSON.stringify([subject, question.prompt, question.object, question.equation, question.count, [...question.options].sort()]);
+      assert.ok(!seen.has(key), `${age}/${subject}/${index}: repeated question`);
+      seen.add(key);
+      assert.equal(question.options.length, 3);
+      assert.equal(new Set(question.options).size, 3);
+      assert.ok(question.options.includes(question.answer));
+      assert.ok(gradeAnswer(question, question.answer));
+      assert.equal(question.options.filter(choice => gradeAnswer(question, choice)).length, 1);
+      assert.ok(soundExists(`q-${age === "seven" ? "seven-" : ""}${subject}-${index}`), `${age}/${subject}/${index}: narration`);
+      if (question.object) assert.ok(artExists(question.object), `${age}/${subject}/${index}: art`);
+      if (question.choiceKind === "picture") for (const choice of question.options) assert.ok(artExists(choice), `${age}/${subject}/${index}: choice art`);
+      if (question.count) assert.equal(question.count, question.answer);
+      if (question.operator) assert.equal(question.operator === "+" ? question.left + question.right : question.left - question.right, question.answer);
+      if (subject === "math" && typeof question.answer === "number") assert.ok(question.answer >= 0 && question.answer <= 100);
+      if (subject === "english") for (const choice of question.options) assert.ok(soundExists(englishFile(choice)), `${age}/english/${index}: ${choice} sound`);
     }
   }
 }
 for (const name of ["music-variety", "applause", "sparkle", "fanfare", "try-again", "level-up", "dress-up", "praise", "retry", "complete"]) assert.ok(soundExists(name));
-const example = QUESTIONS.hangul[0];
+const example = AGE_QUESTIONS.six.hangul[0];
 assert.deepEqual(answerProgress(example, example.answer, false), { correct: true, awardStar: true });
 assert.deepEqual(answerProgress(example, example.answer, true), { correct: true, awardStar: false });
 assert.deepEqual(answerProgress(example, example.options.find(choice => choice !== example.answer), true), { correct: false, awardStar: false });
-console.log("학습 문제 300개, 60단계, 그림과 소리 파일 확인 완료");
+console.log("1,000문제, 200단계, 정답·그림·소리 확인 완료");

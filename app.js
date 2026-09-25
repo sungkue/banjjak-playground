@@ -1,4 +1,5 @@
 import { EMOJI_ART, EXTRA_LEVELS, EXTRA_OBJECTS, EXTRA_QUESTIONS } from "./extra-content.js?v=2";
+import { EXPANDED_CONTENT, MORE_OBJECTS, MORE_EMOJI_ART } from "./expanded-content.js?v=5";
 
 const ASSET = "./assets/";
 const AUDIO = "./audio/";
@@ -29,8 +30,9 @@ const OBJECTS = {
   backpack: "가방", butterfly: "나비", apple: "사과", rabbit: "토끼",
   hat: "모자", duck: "오리", banana: "바나나", milk: "우유",
   cat: "고양이", dog: "강아지", sun: "해", flower: "꽃",
-  ...EXTRA_OBJECTS,
+  ...EXTRA_OBJECTS, ...MORE_OBJECTS,
 };
+const ART = { ...EMOJI_ART, ...MORE_EMOJI_ART };
 
 export const QUESTIONS = {
   hangul: [
@@ -134,7 +136,14 @@ export const QUESTIONS = {
 for (const subject of Object.keys(LEVELS)) {
   LEVELS[subject].push(...EXTRA_LEVELS[subject]);
   QUESTIONS[subject].push(...EXTRA_QUESTIONS[subject]);
+  LEVELS[subject].push(...EXPANDED_CONTENT.six.levels[subject]);
+  QUESTIONS[subject].push(...EXPANDED_CONTENT.six.questions[subject]);
 }
+export const AGE_LEVELS = { six: LEVELS, seven: EXPANDED_CONTENT.seven.levels };
+export const AGE_QUESTIONS = { six: QUESTIONS, seven: EXPANDED_CONTENT.seven.questions };
+const levelsFor = () => AGE_LEVELS[session.age][session.subject];
+const questionsFor = () => AGE_QUESTIONS[session.age][session.subject];
+const stageId = (subject, index, age) => `${age === "seven" ? "seven:" : ""}${subject}:${index}`;
 
 export function gradeAnswer(question, choice) {
   return question.options.includes(choice) && choice === question.answer;
@@ -146,16 +155,18 @@ export function answerProgress(question, choice, alreadyAnswered) {
 }
 
 function loadSaved() {
-  const fallback = { stars: 0, completedStages: [], outfit: "flower", scene: "room", soundOn: true };
+  const fallback = { stars: 0, completedStages: [], age: "six", outfit: "flower", scene: "room", soundOn: true };
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     if (!raw || typeof raw !== "object") return fallback;
     const completedStages = Array.isArray(raw.completedStages)
-      ? raw.completedStages.filter(id => Object.keys(LEVELS).some(subject => LEVELS[subject].some((_, index) => id === `${subject}:${index}`)))
+      ? raw.completedStages.filter(id => Object.entries(AGE_LEVELS).some(([age, subjects]) =>
+        Object.entries(subjects).some(([subject, levels]) => levels.some((_, index) => id === stageId(subject, index, age)))))
       : Array.isArray(raw.completed) ? raw.completed.filter(id => id in SUBJECTS).map(id => `${id}:0`) : [];
     return {
       stars: Number.isSafeInteger(raw.stars) && raw.stars >= 0 ? raw.stars : 0,
       completedStages: [...new Set(completedStages)],
+      age: raw.age === "seven" ? "seven" : "six",
       outfit: OUTFITS.some(item => item.id === raw.outfit) ? raw.outfit : "flower",
       scene: SCENES.some(item => item.id === raw.scene) ? raw.scene : "room",
       soundOn: typeof raw.soundOn === "boolean" ? raw.soundOn : true,
@@ -164,7 +175,7 @@ function loadSaved() {
 }
 
 const state = typeof document === "undefined" ? null : loadSaved();
-const session = { view: "home", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, feedback: "" };
+const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, answered: false, wrongChoice: null, feedback: "" };
 const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
 const audio = typeof document === "undefined" ? null : {
   music: new Audio(`${AUDIO}music-variety.mp3?v=3`), voice: new Audio(), effect: new Audio(),
@@ -176,7 +187,7 @@ if (audio) {
 }
 
 function currentQuestion() {
-  return QUESTIONS[session.subject][session.level * ROUND_SIZE + session.index];
+  return questionsFor()[session.level * ROUND_SIZE + session.index];
 }
 
 function save() {
@@ -207,7 +218,7 @@ function playMusic() {
   }
 }
 function playQuestion() {
-  playClip(audio.voice, `q-${session.subject}-${session.level * ROUND_SIZE + session.index}`);
+  playClip(audio.voice, `q-${session.age === "seven" ? "seven-" : ""}${session.subject}-${session.level * ROUND_SIZE + session.index}`);
 }
 function playEnglishChoice(choice, onended) {
   const key = String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "");
@@ -234,25 +245,26 @@ function avatar(className = "") {
   return `<img class="${className}" src="${ASSET}outfit-${state.outfit}.webp" alt="꾸민 모습의 별이" />`;
 }
 function art(id, className, decorative = false) {
-  return id in EMOJI_ART
-    ? `<span class="${className} emoji-art" ${decorative ? 'aria-hidden="true"' : `role="img" aria-label="${OBJECTS[id]}"`}>${EMOJI_ART[id]}</span>`
+  return id in ART
+    ? `<span class="${className} emoji-art" ${decorative ? 'aria-hidden="true"' : `role="img" aria-label="${OBJECTS[id]}"`}>${ART[id]}</span>`
     : `<img class="${className}" src="${ASSET}${id}.webp" alt="${decorative ? "" : OBJECTS[id]}" />`;
 }
 
 function renderHome() {
-  const done = state.completedStages.length;
-  const total = Object.values(LEVELS).reduce((sum, levels) => sum + levels.length, 0);
+  const done = state.completedStages.filter(id => session.age === "seven" ? id.startsWith("seven:") : !id.startsWith("seven:")).length;
+  const total = Object.values(AGE_LEVELS[session.age]).reduce((sum, levels) => sum + levels.length, 0);
   const subjectCards = Object.entries(SUBJECTS).map(([id, subject]) => `
     <button class="subject-tile ${id}" type="button" data-action="levels" data-subject="${id}" aria-label="${subject.label} 놀이 고르기">
       <img class="subject-art" src="${ASSET}${subject.art}.webp" alt="" />
       <span class="subject-name">${subject.label}</span>
-      <span class="subject-count">${state.completedStages.filter(stage => stage.startsWith(`${id}:`)).length} / ${LEVELS[id].length}</span>
+      <span class="subject-count">${state.completedStages.filter(stage => stage.startsWith(`${session.age === "seven" ? "seven:" : ""}${id}:`)).length} / ${AGE_LEVELS[session.age][id].length}</span>
       <span class="subject-arrow" aria-hidden="true">→</span>
     </button>`).join("");
   return `<section class="home" aria-label="놀이 선택">
     <div class="home-left">
       <h1>오늘은 무엇을 배워볼까?</h1>
       <p class="audio-hint">${state.soundOn ? "화면을 누르면 음악이 시작돼요 🎵" : "위쪽 스피커를 눌러 소리를 켜요 🔊"}</p>
+      <div class="age-switch" role="group" aria-label="놀이 난이도"><button type="button" data-action="age" data-age="six" aria-pressed="${session.age === "six"}"><span>기본 놀이</span><small>500문제</small></button><button type="button" data-action="age" data-age="seven" aria-pressed="${session.age === "seven"}"><span>7살 도전</span><small>500문제</small></button></div>
       <div class="subject-list">${subjectCards}</div>
       <div class="home-progress" aria-label="끝낸 놀이 ${done}개 중 ${total}개">
         <span class="progress-copy">끝낸 놀이</span>
@@ -270,21 +282,21 @@ function renderHome() {
 
 function renderLevels() {
   const subject = SUBJECTS[session.subject];
-  const levels = LEVELS[session.subject];
-  const nextLevel = levels.findIndex((_, index) => !state.completedStages.includes(`${session.subject}:${index}`));
+  const levels = levelsFor();
+  const nextLevel = levels.findIndex((_, index) => !state.completedStages.includes(stageId(session.subject, index, session.age)));
   const cards = levels.map((title, index) => {
-    const done = state.completedStages.includes(`${session.subject}:${index}`);
+    const done = state.completedStages.includes(stageId(session.subject, index, session.age));
     return `<button class="level-card ${done ? "finished" : ""}" type="button" data-action="start" data-level="${index}" aria-label="${index + 1}단계 ${title} 시작">
       <span class="level-number">${index + 1}</span><span class="level-title">${title}</span>
       <span class="level-note">${done ? "완료 ✓" : "5문제 놀이 →"}</span>
     </button>`;
   });
-  const sections = [0, 1, 2, 3].map(group => `<section class="level-group" aria-label="${group * 5 + 1}단계부터 ${group * 5 + 5}단계">
-    <h2>${group === 0 ? "시작하기" : group === 1 ? "익숙해지기" : group === 2 ? "한 걸음 더" : "도전하기"} <small>${group * 5 + 1}–${group * 5 + 5}단계</small></h2>
+  const sections = Array.from({ length: Math.ceil(levels.length / 5) }, (_, group) => `<section class="level-group" aria-label="${group * 5 + 1}단계부터 ${Math.min(group * 5 + 5, levels.length)}단계">
+    <h2>${["시작하기", "익숙해지기", "한 걸음 더", "도전하기"][group] || "계속 놀기"} <small>${group * 5 + 1}–${Math.min(group * 5 + 5, levels.length)}단계</small></h2>
     <div class="level-grid">${cards.slice(group * 5, group * 5 + 5).join("")}</div>
   </section>`).join("");
   return `<section class="levels-screen" aria-label="${subject.label} 단계 고르기">
-    <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div>
+    <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div><p class="age-caption">${session.age === "seven" ? "7살 도전" : "기본 놀이"} · ${levels.length * ROUND_SIZE}문제</p>
     <p class="levels-intro">5문제씩 골라서 놀자! ✨</p>
     <button class="primary-button continue-button" type="button" data-action="start" data-level="${nextLevel < 0 ? 0 : nextLevel}">${nextLevel < 0 ? "1단계 다시 놀기" : `${nextLevel + 1}단계 이어서 놀기`} →</button>
     ${sections}
@@ -305,7 +317,7 @@ function renderGame() {
   const question = currentQuestion();
   let illustration = "";
   if (question.count) {
-    illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" aria-hidden="true">${Array.from({ length: question.count }, () => question.object ? art(question.object, "count-art", true) : '<i class="math-dot"></i>').join("")}</div>`;
+    illustration = `<div class="count-objects ${question.object ? "" : "count-dots"}" role="img" aria-label="${question.count}개의 ${question.object ? OBJECTS[question.object] : "점"}">${Array.from({ length: question.count }, () => question.object ? art(question.object, "count-art", true) : '<i class="math-dot"></i>').join("")}</div>`;
   } else if (question.operator) {
     const dots = count => `<span class="dot-group">${Array.from({ length: count }, () => '<i class="math-dot"></i>').join("")}</span>`;
     illustration = `<div class="math-visual" aria-hidden="true">${dots(question.left)}<span class="math-symbol">${question.operator === "+" ? "+" : "−"}</span>${dots(question.right)}</div>`;
@@ -314,23 +326,23 @@ function renderGame() {
   } else if (question.color) {
     illustration = `<span class="color-swatch" style="--swatch:${question.color}" aria-hidden="true"></span>`;
   }
-  if (question.equation) illustration += `<span class="equation" aria-hidden="true">${question.equation}</span>`;
+  if (question.equation) illustration += `<span class="equation">${question.equation}</span>`;
   const choices = question.options.map(choice => {
     const isNumber = typeof choice === "number";
     const artId = question.choiceKind === "picture" ? choice : null;
     const label = artId ? OBJECTS[choice] : choice;
     const picture = artId ? art(artId, "choice-art", true) : "";
     const response = session.answered && choice === question.answer ? "correct" : session.wrongChoice === choice ? "wrong" : "";
-    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
+    return `<button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${picture}<span class="choice-word">${label}</span></button>`;
   }).join("");
   const feedback = session.feedback
     ? `<p class="feedback-message ${session.answered && session.wrongChoice === null ? "good" : ""}" role="status">${session.feedback}</p>`
     : `<p class="feedback-message" role="status">${question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!"}</p>`;
   return `<section class="game-screen" aria-label="${subject.title}">
-    <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.level + 1}단계 · ${LEVELS[session.subject][session.level]}</span></div>${renderSteps()}</div>
+    <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "seven" ? "7살 도전 · " : ""}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
     <div class="game-layout">
       <div class="game-main">
-        <div class="question-panel"><div class="question-content"><span class="question-text">${question.prompt}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
+        <div class="question-panel ${question.prompt.length > 38 ? "long-question" : ""}"><div class="question-content"><span class="question-text">${question.prompt}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
         <div class="choice-grid">${choices}</div>
         <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
       </div>
@@ -360,7 +372,7 @@ function renderWardrobe() {
 function renderResult() {
   return `<section class="result" aria-label="놀이 완료"><div class="result-panel">
     <div class="result-copy">${starSvg()}<h1>우와, 다 해냈어!</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! 반짝 별 5개를 모았어.</p>
-      <div class="result-actions">${session.level + 1 < LEVELS[session.subject].length ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
+      <div class="result-actions">${session.level + 1 < levelsFor().length ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
     </div>${avatar("result-avatar")}
   </div></section>`;
 }
@@ -388,7 +400,7 @@ function openLevels(subject) {
 }
 
 function start(level) {
-  if (!session.subject || !Number.isInteger(level) || level < 0 || level >= LEVELS[session.subject].length) return;
+  if (!session.subject || !Number.isInteger(level) || level < 0 || level >= levelsFor().length) return;
   session.level = level;
   session.index = 0;
   session.answered = false;
@@ -428,8 +440,8 @@ function next() {
   if (!session.answered) return;
   audio.effect.pause();
   if (session.index === ROUND_SIZE - 1) {
-    const stageId = `${session.subject}:${session.level}`;
-    if (!state.completedStages.includes(stageId)) state.completedStages.push(stageId);
+    const completedId = stageId(session.subject, session.level, session.age);
+    if (!state.completedStages.includes(completedId)) state.completedStages.push(completedId);
     save();
     go("result");
     playClip(audio.effect, "level-up");
@@ -458,6 +470,9 @@ if (typeof document !== "undefined") {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
     switch (button.dataset.action) {
+      case "age":
+        if (button.dataset.age in AGE_LEVELS) { session.age = button.dataset.age; state.age = session.age; save(); render(); }
+        break;
       case "home": go("home"); break;
       case "wardrobe": go("wardrobe"); break;
       case "levels": openLevels(button.dataset.subject || session.subject); break;
