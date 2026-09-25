@@ -97,6 +97,7 @@ img { display: block; max-width: 100%; }
 .subject-tile.english { background: linear-gradient(135deg,#fff1bb 0%,#ffdf8b 100%); }
 .subject-art { width: 96%; height: 58%; object-fit: contain; margin: auto auto 8px; filter: drop-shadow(0 5px 0 rgba(255,255,255,.2)); }
 .subject-name { display: grid; place-items: center; width: 100%; min-height: 80px; border-radius: 45px; background: rgba(255,255,255,.79); box-shadow: inset 0 3px 0 rgba(255,255,255,.76); font-size: clamp(35px, 3.7vw, 55px); line-height: 1; }
+.subject-count { position: absolute; top: 13px; right: 13px; padding: 4px 12px; border-radius: 20px; background: rgba(255,255,255,.91); color: #665286; font-size: 22px; }
 .subject-arrow { display: grid; place-items: center; width: 58px; height: 58px; margin-top: -10px; margin-bottom: -11px; border-radius: 50%; color: white; background: var(--pink); box-shadow: 0 4px 0 rgba(193,76,99,.23); font-family: sans-serif; font-size: 43px; font-weight: 700; line-height: 1; }
 .math .subject-arrow { background: #4d8ee7; }
 .english .subject-arrow { background: #ffad25; }
@@ -108,6 +109,19 @@ img { display: block; max-width: 100%; }
 .progress-value svg { width: 39px; height: 39px; }
 .home-stage { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 615px; padding-top: 45px; }
 .home-avatar { width: min(100%, 435px); max-height: 520px; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 13px 8px rgba(128,83,99,.14)); animation: float 3.6s ease-in-out infinite; }
+
+/* Short learning rounds */
+.levels-screen { padding-bottom: 45px; }
+.levels-intro { margin: 20px 0 25px; font-size: 31px; }
+.level-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.level-card { display: flex; flex-direction: column; align-items: flex-start; min-height: 185px; padding: 20px 24px; border: 4px solid white; border-radius: 32px; background: #ffd7df; box-shadow: var(--shadow); color: var(--ink); text-align: left; transition: transform .15s ease; }
+.level-card:nth-child(3n+2) { background: #d4edff; }
+.level-card:nth-child(3n+3) { background: #ffebae; }
+.level-card:hover { transform: translateY(-5px); }
+.level-card.finished { border-color: #61cda0; }
+.level-number { display: grid; place-items: center; width: 49px; height: 49px; border-radius: 50%; background: white; font-size: 28px; }
+.level-title { margin-top: 13px; font-size: 35px; line-height: 1.1; }
+.level-note { margin-top: auto; color: #665286; font-size: 23px; }
 .stage-sparkle { position: absolute; z-index: 0; color: #ffc64b; font-size: 40px; text-shadow: 0 3px white; pointer-events: none; }
 .stage-sparkle.one { top: 28%; left: -1%; transform: rotate(15deg); }
 .stage-sparkle.two { top: 12%; right: 1%; font-size: 25px; }
@@ -132,6 +146,8 @@ img { display: block; max-width: 100%; }
 .back-button { display: inline-flex; align-items: center; justify-content: center; gap: 11px; min-width: 176px; min-height: 66px; padding: 10px 24px; border-radius: 39px; color: var(--ink); font-size: 26px; white-space: nowrap; }
 .back-button svg { width: 28px; height: 28px; fill: currentColor; }
 .page-title { white-space: nowrap; }
+.game-heading { display: flex; flex-direction: column; gap: 1px; }
+.game-level { color: #67518a; font-size: 22px; }
 .steps { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .step-dot { display: grid; place-items: center; width: 54px; height: 54px; border: 3px solid rgba(255,255,255,.95); border-radius: 50%; color: #74668c; background: rgba(219,208,244,.72); font-size: 27px; box-shadow: 0 3px 7px rgba(86,64,132,.08); }
 .step-dot.current { background: #ffd45c; color: var(--ink); }
@@ -144,8 +160,14 @@ img { display: block; max-width: 100%; }
 .question-content { flex: 1; min-width: 0; }
 .question-text { display: block; font-size: clamp(32px, 4vw, 54px); line-height: 1.12; word-break: keep-all; }
 .question-image { width: 102px; height: 95px; margin: 0 auto 4px; object-fit: contain; }
-.count-objects { display: flex; align-items: center; justify-content: center; gap: 1px; margin-top: 10px; }
-.count-objects img { width: min(100px, calc(100% / var(--count))); height: 86px; object-fit: contain; }
+.count-objects { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: min(100%, 460px); gap: 2px; margin: 10px auto 0; }
+.count-objects img { flex: 0 0 18%; width: 18%; height: 70px; object-fit: contain; }
+.math-visual { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 12px auto 0; }
+.dot-group { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 5px; max-width: 170px; }
+.math-dot { width: 22px; height: 22px; border-radius: 50%; background: #ff9aaf; border: 2px solid #ef6f8d; }
+.math-symbol { font: 42px sans-serif; }
+.equation { display: block; margin-top: 8px; font-size: 41px; line-height: 1; }
+.color-swatch { display: block; width: 82px; height: 82px; margin: 10px auto 0; border: 5px solid white; border-radius: 50%; background: var(--swatch); box-shadow: 0 4px 12px rgba(51,37,77,.18); }
 .speak-button { flex: 0 0 auto; display: grid; place-items: center; width: 78px; height: 78px; padding: 18px; border: 3px solid #ffc7d0; border-radius: 50%; background: #ff7086; box-shadow: 0 6px 0 #d75b74; color: white; }
 .speak-button svg { width: 100%; height: 100%; fill: currentColor; }
 .choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -161,6 +183,8 @@ img { display: block; max-width: 100%; }
 .choice-word { display: grid; place-items: center; width: 100%; min-height: 81px; border-radius: 50px; background: rgba(255,255,255,.84); font-size: clamp(32px, 3.6vw, 51px); line-height: 1; white-space: nowrap; }
 .choice-card.number { justify-content: center; height: clamp(190px, 29vh, 275px); }
 .choice-card.number .choice-word { width: 70%; min-height: 130px; font-size: 88px; }
+.choice-card.text { justify-content: center; height: clamp(185px, 29vh, 265px); }
+.choice-card.text .choice-word { min-height: 105px; padding: 8px; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .feedback-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 105px; margin-top: 24px; }
 .feedback-message { margin: 0; padding: 18px 25px; border: 3px solid rgba(255,255,255,.91); border-radius: 30px; background: rgba(255,255,255,.91); color: #614991; box-shadow: 0 6px 15px rgba(95,65,146,.09); font-size: 29px; line-height: 1.2; }
 .feedback-message.good { color: #278462; }
@@ -253,6 +277,10 @@ img { display: block; max-width: 100%; }
   .home-stage { min-height: 0; padding-top: 8px; }
   .home-avatar { height: 380px; width: auto; }
   .decorate-button { width: min(100%, 350px); margin-top: -16px; }
+  .level-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+  .level-card { min-height: 160px; padding: 15px; border-radius: 24px; }
+  .level-title { font-size: 28px; }
+  .level-note { font-size: 20px; }
   .subpage-top { min-height: 90px; flex-wrap: wrap; gap: 12px; padding: 8px 0 16px; }
   .back-button { min-width: 0; min-height: 54px; padding: 8px 15px; font-size: 21px; }
   .back-button svg { width: 23px; height: 23px; }
@@ -266,6 +294,7 @@ img { display: block; max-width: 100%; }
   .choice-word { min-height: 60px; font-size: 30px; }
   .choice-card.number { height: 170px; }
   .choice-card.number .choice-word { min-height: 110px; font-size: 70px; }
+  .choice-card.text { height: 195px; }
   .game-side { display: none; }
   .feedback-row { min-height: 80px; }
   .feedback-message { font-size: 23px; }
@@ -291,6 +320,7 @@ img { display: block; max-width: 100%; }
   .subject-art { width: 112px; height: 110px; margin: 0 4px 0 0; }
   .subject-name { flex: 1; min-height: 75px; font-size: 39px; }
   .subject-arrow { flex: 0 0 auto; width: 42px; height: 42px; margin: 0 0 0 -12px; font-size: 30px; }
+  .subject-count { top: 4px; right: 15px; padding: 2px 9px; font-size: 16px; }
   .home-progress { font-size: 19px; }
   .progress-copy { white-space: normal; max-width: 74px; line-height: 1.1; }
   .progress-track { min-width: 60px; }
@@ -299,6 +329,12 @@ img { display: block; max-width: 100%; }
   .subpage-top { justify-content: flex-start; }
   .page-title { font-size: 35px; }
   .back-button { min-height: 47px; font-size: 18px; }
+  .levels-intro { margin: 7px 0 18px; font-size: 22px; }
+  .level-card { min-height: 150px; padding: 12px; border-width: 3px; }
+  .level-number { width: 37px; height: 37px; font-size: 22px; }
+  .level-title { margin-top: 10px; font-size: 24px; }
+  .level-note { font-size: 17px; }
+  .game-level { font-size: 17px; }
   .steps { margin-top: 3px; gap: 3px; }
   .step-dot { width: 39px; height: 39px; font-size: 21px; border-width: 2px; }
   .step-line { width: 10px; }
@@ -306,7 +342,13 @@ img { display: block; max-width: 100%; }
   .question-panel { gap: 9px; min-height: 135px; padding: 12px; }
   .question-text { font-size: 32px; }
   .question-image { height: 70px; width: 80px; }
-  .count-objects img { width: min(90px, calc(100% / var(--count))); height: 72px; }
+  .count-objects img { height: 53px; }
+  .math-visual { gap: 8px; }
+  .dot-group { max-width: 105px; gap: 3px; }
+  .math-dot { width: 16px; height: 16px; border-width: 1px; }
+  .math-symbol { font-size: 27px; }
+  .equation { font-size: 32px; }
+  .color-swatch { width: 65px; height: 65px; }
   .speak-button { width: 50px; height: 50px; padding: 11px; }
   .choice-grid { gap: 7px; }
   .choice-card { height: 185px; border-radius: 22px; border-width: 3px; padding: 5px; }
@@ -314,6 +356,8 @@ img { display: block; max-width: 100%; }
   .choice-word { min-height: 50px; font-size: clamp(21px, 5.8vw, 31px); }
   .choice-card.number { height: 155px; }
   .choice-card.number .choice-word { min-height: 95px; font-size: 60px; }
+  .choice-card.text { height: 165px; }
+  .choice-card.text .choice-word { min-height: 90px; font-size: clamp(19px, 5.2vw, 28px); }
   .feedback-row { align-items: stretch; flex-direction: column; }
   .feedback-message { padding: 15px; font-size: 24px; }
   .next-button { width: 100%; }
