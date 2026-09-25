@@ -159,7 +159,7 @@ const alphabet = [
   ["shoe", "S", "C", "Z"],
 ].map(([id, answer, a, b], i) => text(`${thing[id].en}의 첫 알파벳은?`, answer, a, b, i, { object: id }));
 const numberWords = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN"];
-const englishNumbers = numberWords.map((answer, i) => text(`${i + 1}은 영어로?`, answer,
+const englishNumbers = numberWords.map((answer, i) => text(`숫자 ${i + 1}, 영어로 뭐라고 할까?`, answer,
   numberWords[(i + 1) % 10], numberWords[(i + 3) % 10], i, { equation: String(i + 1) }));
 const englishActions = ["run", "jump", "sleep", "eat", "read"].map((id, i, ids) => text(`그림의 동작은 영어로?`, thing[id].en,
   thing[ids[(i + 1) % 5]].en, thing[ids[(i + 2) % 5]].en, i, { object: id }));

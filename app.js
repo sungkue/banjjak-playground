@@ -1,4 +1,4 @@
-import { EMOJI_ART, EXTRA_LEVELS, EXTRA_OBJECTS, EXTRA_QUESTIONS } from "./extra-content.js";
+import { EMOJI_ART, EXTRA_LEVELS, EXTRA_OBJECTS, EXTRA_QUESTIONS } from "./extra-content.js?v=2";
 
 const ASSET = "./assets/";
 const AUDIO = "./audio/";
@@ -165,7 +165,7 @@ const audio = typeof document === "undefined" ? null : {
 };
 if (audio) {
   audio.music.loop = true;
-  audio.music.volume = .4;
+  audio.music.volume = .28;
   audio.effect.volume = .55;
 }
 
@@ -188,7 +188,7 @@ function playClip(player, file, onended) {
   if (!state.soundOn) return;
   player.pause();
   player.onended = onended || null;
-  player.src = `${AUDIO}${file}.mp3`;
+  player.src = `${AUDIO}${file}.mp3?v=2`;
   player.currentTime = 0;
   player.play().then(() => { document.querySelector("#audio-status").hidden = true; }).catch(error => {
     audioFailure(error);
@@ -416,6 +416,7 @@ function answer(value) {
 
 function next() {
   if (!session.answered) return;
+  audio.effect.pause();
   if (session.index === ROUND_SIZE - 1) {
     const stageId = `${session.subject}:${session.level}`;
     if (!state.completedStages.includes(stageId)) state.completedStages.push(stageId);

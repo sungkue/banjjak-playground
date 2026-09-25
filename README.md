@@ -19,3 +19,5 @@ python -m http.server 4173
 문제 데이터 확인: `node check.mjs` 또는 `npm run check`
 
 글꼴: Jua, [SIL Open Font License](assets/OFL-Jua.txt).
+
+음성 파일은 [Qwen3-TTS 1.7B CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)와 [Kokoro 82M](https://huggingface.co/hexgrad/Kokoro-82M)으로 로컬에서 생성했습니다. 두 모델 라이선스는 Apache-2.0입니다. 박수 효과음은 [qubodup의 Well Done](https://opengameart.org/content/well-done)을 짧게 편집한 것으로 CC0입니다.
