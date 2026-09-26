@@ -573,12 +573,13 @@ function art(id, className, decorative = false) {
 function renderHome() {
   const done = completedInAge(session.age, state);
   const total = Object.values(AGE_LEVELS[session.age]).reduce((sum, levels) => sum + levels.length, 0);
+  const allQuestions = Object.values(AGE_QUESTIONS).flatMap(subjects => Object.values(subjects)).reduce((sum, questions) => sum + questions.length, 0);
   const collected = earnedBadges(state);
   const subjectCards = Object.entries(SUBJECTS).map(([id, subject]) => `
-    <button class="subject-tile ${id}" type="button" data-action="levels" data-subject="${id}" aria-label="${subject.label} 놀이 고르기">
+    <button class="subject-tile ${id}" type="button" data-action="levels" data-subject="${id}" aria-label="${subject.label} 놀이 고르기" aria-describedby="${id}-count ${id}-completed">
       <img class="subject-art" src="${ASSET}${subject.art}.webp" alt="" />
-      <span class="subject-name">${subject.label}</span>
-      <span class="subject-count">${AGE_LEVELS[session.age][id].filter((_, index) => state.completedStages.includes(stageId(id, index, session.age))).length} / ${AGE_LEVELS[session.age][id].length}</span>
+      <span class="subject-name"><span>${subject.label}</span><small id="${id}-completed">${AGE_LEVELS[session.age][id].filter((_, index) => state.completedStages.includes(stageId(id, index, session.age))).length}단계 완료</small></span>
+      <span class="subject-count" id="${id}-count">${AGE_QUESTIONS[session.age][id].length}문제 · ${AGE_LEVELS[session.age][id].length}단계</span>
       <span class="subject-arrow" aria-hidden="true">→</span>
     </button>`).join("");
   const ages = Object.keys(AGE_LEVELS).map(age => {
@@ -590,6 +591,7 @@ function renderHome() {
     <div class="home-left">
       <h1>오늘은 무엇을 배워볼까?</h1>
       <p class="audio-hint">${state.soundOn ? "화면을 누르면 음악이 시작돼요 🎵" : "위쪽 스피커를 눌러 소리를 켜요 🔊"}</p>
+      <p class="content-summary">전체 ${allQuestions.toLocaleString("ko-KR")}문제 · 한 단계에 ${ROUND_SIZE}문제</p>
       <div class="age-switch" role="group" aria-label="놀이 난이도">${ages}</div>
       ${nextAge && !ageUnlocked(nextAge, state) ? `<p class="unlock-hint">다음 도전은 별 ${AGE_STAR_GATE[nextAge]}개와 ${nextAge === "seven" ? "기본 놀이 10단계" : "7살 도전 15단계"}를 끝내면 열려요.</p>` : ""}
       <div class="subject-list">${subjectCards}</div>
@@ -597,8 +599,8 @@ function renderHome() {
         <button class="trip-card adventure" type="button" data-action="adventure"><span aria-hidden="true">🎒</span><span><strong>깜짝 탐험</strong><small>세 과목을 섞어 5문제 · 매번 새롭게!</small></span><b aria-hidden="true">→</b></button>
         <button class="trip-card review" type="button" data-action="review" ${availableReviews().length ? "" : "disabled"}><span aria-hidden="true">🌱</span><span><strong>복습 여행 ${availableReviews().length ? `· ${availableReviews().length}개` : ""}</strong><small>${availableReviews().length ? "전에 어려웠던 문제, 다시 만나 볼까?" : "도움받은 문제가 생기면 여기 모여요"}</small></span><b aria-hidden="true">→</b></button>
       </div>
-      <div class="home-progress" aria-label="끝낸 놀이 ${done}개 중 ${total}개">
-        <span class="progress-copy">끝낸 놀이</span>
+      <div class="home-progress" aria-label="전체 ${total}단계 중 ${done}단계 완료">
+        <span class="progress-copy">끝낸 단계</span>
         <span class="progress-track" aria-hidden="true"><span class="progress-fill" style="--fill:${done / total * 100}%"></span></span>
         <span class="progress-value">${starSvg()} ${done} / ${total}</span>
       </div>
@@ -638,7 +640,7 @@ function renderLevels() {
   </section>`).join("");
   return `<section class="levels-screen" aria-label="${subject.label} 단계 고르기">
     <div class="subpage-top"><button class="back-button" type="button" data-action="home">${homeSvg()} 처음으로</button><h1 class="page-title">${subject.title}</h1></div><p class="age-caption">${AGE_NAMES[session.age]} · ${levels.length * ROUND_SIZE}문제</p>
-    <p class="levels-intro">별을 모으고 앞 단계를 끝내면 다음 단계가 열려요 ✨</p>
+    <p class="levels-intro">한 단계에 ${ROUND_SIZE}문제! 별을 모으고 앞 단계를 끝내면 다음 단계가 열려요 ✨</p>
     <button class="primary-button continue-button" type="button" data-action="${nextLevel < 0 && !allDone ? "home" : "start"}" data-level="${nextLevel < 0 ? 0 : nextLevel}">${nextLevel < 0 ? allDone ? "1단계 다시 놀기" : "다른 놀이에서 별 모으기" : `${nextLevel + 1}단계 이어서 놀기`} →</button>
     ${sections}
   </section>`;
