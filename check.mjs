@@ -9,7 +9,7 @@ const soundExists = name => existsSync(new URL(`./audio/${name}.mp3`, import.met
 const englishFile = choice => `en-${String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}`;
 const counts = { hangul: 170, math: 165, english: 165 };
 const seen = new Set();
-const activities = { word: 0, sentence: 0, number: 0 };
+const activities = {};
 
 for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
   for (const [subject, questions] of Object.entries(subjects)) {
@@ -25,16 +25,25 @@ for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
       assert.deepEqual(questionFromId(`${age}:${subject}:${index}`), { age, subject, index });
       const activity = activityFor(question, subject);
       if (activity) {
-        activities[activity.kind] += 1;
-        if (activity.tokens) {
-          assert.equal(activity.tokens.join(activity.separator), question.answer);
+        activities[activity.kind] = (activities[activity.kind] || 0) + 1;
+        if (["word", "sentence", "fill", "order", "place", "letter", "line"].includes(activity.kind)) {
+          if (["word", "sentence", "fill"].includes(activity.kind)) assert.equal(activity.tokens.join(activity.separator), activity.answerText || question.answer);
+          if (activity.kind === "order") assert.deepEqual(activity.tokens, [...question.options].sort((a, b) => a - b));
+          if (activity.kind === "place") assert.equal(activity.tokens.reduce((sum, part) => sum + part, 0), question.answer);
+          if (activity.kind === "letter" || activity.kind === "line") assert.ok(activity.tokens.includes(question.answer));
           const tiles = activityTiles(question, activity);
           for (const token of activity.tokens) {
             const at = tiles.indexOf(token);
             assert.ok(at >= 0, `${age}/${subject}/${index}: every repeated letter has its own tile`);
             tiles.splice(at, 1);
           }
-        } else assert.ok(Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 10000);
+        } else if (activity.kind === "count") assert.equal(activity.items?.length || question.count, question.answer);
+        else if (activity.kind === "listen") assert.equal(question.choiceKind, "picture");
+        else if (activity.kind === "evidence") {
+          assert.ok(activity.passage.toLowerCase().includes(String(question.answer).toLowerCase()));
+          assert.ok(activity.words.some(word => word.toLowerCase().includes(String(question.answer).toLowerCase())));
+        }
+        else assert.ok(Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 10000);
       }
       assert.ok(gradeAnswer(question, question.answer));
       assert.equal(question.options.filter(choice => gradeAnswer(question, choice)).length, 1);
@@ -102,8 +111,18 @@ for (const title of ["첫 반짝", "다시 해냈어", "기억 탐험가", "반�
 badgeProgress.reviewedQuestions = ["six:math:0", "six:english:0", "six:english:4"];
 badgeProgress.adventures = 3;
 for (const title of ["기억이 쑥쑥", "세상 탐험가"]) assert.ok(earnedBadges(badgeProgress).some(badge => badge.title === title));
-assert.equal(activityFor(AGE_QUESTIONS.six.math[27], "math"), null, "comparisons retain their essential choices");
-assert.equal(activityFor(AGE_QUESTIONS.six.english[15], "english"), null, "single letter questions keep their choices");
+assert.equal(activityFor(AGE_QUESTIONS.six.math[27], "math").kind, "order");
+assert.equal(activityFor(AGE_QUESTIONS.six.english[15], "english").kind, "letter");
+assert.equal(activityFor(AGE_QUESTIONS.six.hangul[0], "hangul").answerText, "가방");
+assert.equal(activityFor(AGE_QUESTIONS.six.math[0], "math").kind, "count");
+assert.equal(activityFor(AGE_QUESTIONS.six.math[10], "math").kind, "line");
+assert.equal(activityFor(AGE_QUESTIONS.six.english[10], "english").kind, "listen");
+assert.equal(activityFor(AGE_QUESTIONS.eight.math[0], "math").kind, "place");
+assert.equal(activityFor(AGE_QUESTIONS.six.hangul[70], "hangul").kind, "count");
+assert.equal(activityFor(AGE_QUESTIONS.seven.hangul[30], "hangul").kind, "fill");
+assert.equal(activityFor(AGE_QUESTIONS.seven.english[60], "english").kind, "fill");
+assert.equal(activityFor(AGE_QUESTIONS.eight.english[90], "english").kind, "evidence");
+for (const kind of ["word", "sentence", "fill", "letter", "count", "order", "line", "place", "listen", "number", "evidence"]) assert.ok(activities[kind] > 0, `${kind}: usable activity`);
 assert.equal(activityFor(AGE_QUESTIONS.eight.english[30], "english").kind, "sentence");
 assert.equal(activityTiles(AGE_QUESTIONS.six.english[2], activityFor(AGE_QUESTIONS.six.english[2], "english")).filter(token => token === "P").length, 2);
 assert.deepEqual(validQuestionIds(["six:math:0", "six:math:0", "eight:english:164", "six:math:165", "__proto__:math:0", "six:math:-1", "six:math:01", null]), ["six:math:0", "eight:english:164"]);
@@ -122,4 +141,4 @@ for (let turn = 0; turn < 20; turn++) {
 assert.match(answerFact(AGE_QUESTIONS.seven.math[0], "math"), /10을 만들고/);
 assert.match(answerFact(AGE_QUESTIONS.eight.hangul[110], "hangul"), /글 속 단서.*씨앗/);
 assert.match(answerFact(AGE_QUESTIONS.eight.english[30], "english"), /나는 행복해.*I am happy/);
-console.log("1,500문제, 300단계, 조립·수 만들기·탐험·복습·잠금·그림·소리 확인 완료", activities);
+console.log("1,500문제, 300단계, 11가지 풀이·탐험·복습·잠금·그림·소리 확인 완료", activities);
