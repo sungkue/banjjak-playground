@@ -519,3 +519,66 @@ img { display: block; max-width: 100%; }
   #app { padding-inline: 16px; }
   .home h1 { font-size: 30px; white-space: normal; word-break: keep-all; }
 }
+
+/* Short, hands-on activities reuse the same question and progress. */
+.trip-list { display: grid; gap: 10px; margin-top: 18px; }
+.trip-card { display: flex; align-items: center; gap: 13px; min-height: 86px; padding: 12px 18px; border: 3px solid white; border-radius: 25px; color: var(--ink); text-align: left; background: #fff1d4; box-shadow: var(--shadow); }
+.trip-card.review { background: #e6f7e7; }
+.trip-card > span:first-child { font-size: 38px; }
+.trip-card > span:nth-child(2) { flex: 1; }
+.trip-card strong, .trip-card small { display: block; font-weight: 400; }
+.trip-card strong { font-size: 27px; }
+.trip-card small { margin-top: 4px; font-size: 19px; color: #605273; }
+.trip-card b { font-size: 28px; }
+.trip-card:disabled { cursor: default; box-shadow: none; background: #f0edf5; }
+.trip-card:disabled b { visibility: hidden; }
+.activity-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 14px 0 10px; }
+.activity-mode strong { flex: 1 1 130px; font-size: 24px; font-weight: 400; }
+.activity-mode button, .undo-button { min-height: 48px; padding: 8px 12px; border: 2px solid #ded2ef; border-radius: 16px; background: #fffdfd; color: var(--ink); font-size: 19px; }
+.activity-board { padding: 18px; border: 3px solid white; border-radius: 28px; background: #fff9ed; box-shadow: var(--shadow); }
+.activity-board.sentence { background: #eaf5ff; }
+.activity-board.number { background: #eef8ee; }
+.activity-board.solved { border-color: #70bd8e; background: #edf9ee; }
+.activity-instruction { margin: 0 0 12px; font-size: 23px; text-align: center; line-height: 1.3; }
+.answer-slots { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; min-height: 58px; margin-bottom: 16px; }
+.answer-slot { display: grid; place-items: center; min-width: 49px; min-height: 52px; padding: 5px 9px; border: 2px dashed #cab7e2; border-radius: 12px; font-size: 30px; color: var(--ink); background: #fff; }
+.answer-slot.filled { border: 2px solid #9a76c9; box-shadow: 0 3px 0 #d7c6eb; }
+.answer-slot.empty { color: #b0a0c3; }
+.answer-slots.sentence .answer-slot { min-width: 66px; font-size: 23px; }
+.answer-slots.sentence { padding-bottom: 9px; border-bottom: 5px double #a6c8db; }
+.tile-tray { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.build-tile { min-width: 50px; min-height: 52px; padding: 6px 13px; background: #fff; border: 2px solid #e6c689; border-radius: 13px; color: var(--ink); box-shadow: 0 4px 0 #efd9ac; font-size: 30px; touch-action: manipulation; }
+.sentence .build-tile { font-size: 23px; border-color: #acc8e9; box-shadow: 0 4px 0 #d2e1f3; }
+.build-tile:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.build-tile:disabled { color: #7c728a; border-style: dashed; background: transparent; box-shadow: none; cursor: default; opacity: .5; }
+.build-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.check-button { min-height: 53px; padding: 8px 16px; border-radius: 18px; font-size: 24px; }
+.check-button:disabled, .undo-button:disabled { opacity: .5; cursor: default; box-shadow: none; }
+.number-draft { display: block; width: min(100%, 260px); margin: 0 auto 14px; padding: 5px 15px; min-height: 65px; border: 2px dashed #90b89e; border-radius: 16px; background: white; text-align: center; font-size: 48px; }
+.number-pad { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 370px; margin: auto; }
+.number-pad .build-tile { min-width: 0; border-color: #a5c8ac; box-shadow: 0 4px 0 #d1e6d4; }
+@media (max-width: 600px) {
+  .game-heading { flex: 1; min-width: 0; }
+  .game-level { display: block; overflow-wrap: anywhere; }
+  .trip-card { gap: 10px; min-height: 80px; padding: 10px 12px; }
+  .trip-card > span:first-child { font-size: 30px; }
+  .trip-card strong { font-size: 23px; }
+  .trip-card small { font-size: 16px; }
+  .activity-mode { gap: 5px; margin-top: 10px; }
+  .activity-mode strong { font-size: 21px; }
+  .activity-mode button { padding: 7px 9px; font-size: 17px; }
+  .activity-mode .activity-listen { min-width: 48px; }
+  .activity-listen span { display: none; }
+  .activity-board { padding: 12px; border-radius: 22px; }
+  .activity-instruction { font-size: 20px; }
+  .answer-slots { gap: 6px; margin-bottom: 12px; }
+  .answer-slot { min-width: 48px; min-height: 48px; font-size: 27px; }
+  .build-tile { min-width: 48px; min-height: 48px; padding: 5px 10px; font-size: 27px; }
+  .number-pad { gap: 6px; }
+  .build-actions { gap: 6px; margin-top: 14px; }
+  .undo-button { padding: 7px 9px; font-size: 17px; }
+  .check-button { flex: 1; min-height: 49px; padding: 8px; font-size: 21px; }
+  .learning-tools > button, .count-tool button, .read-tool button, .choice-listen, .icon-button { min-width: 48px; min-height: 48px; }
+  .trip-card strong, .trip-card small, .activity-instruction { word-break: keep-all; }
+}
+@media (max-width: 350px) { .number-pad { gap: 4px; } }

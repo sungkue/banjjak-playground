@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback, ageUnlocked, stageUnlocked, earnedBadges } from "./app.js";
+import { AGE_LEVELS, AGE_QUESTIONS, gradeAnswer, answerProgress, answerFeedback, answerFact, ageUnlocked, stageUnlocked, earnedBadges, activityFor, activityTiles, questionFromId, validQuestionIds, adventureQuestions, reviewAfterAnswer } from "./app.js";
 import { EMOJI_ART } from "./extra-content.js";
 import { MORE_EMOJI_ART } from "./expanded-content.js";
 
@@ -9,6 +9,7 @@ const soundExists = name => existsSync(new URL(`./audio/${name}.mp3`, import.met
 const englishFile = choice => `en-${String(choice).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}`;
 const counts = { hangul: 170, math: 165, english: 165 };
 const seen = new Set();
+const activities = { word: 0, sentence: 0, number: 0 };
 
 for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
   for (const [subject, questions] of Object.entries(subjects)) {
@@ -21,6 +22,20 @@ for (const [age, subjects] of Object.entries(AGE_QUESTIONS)) {
       assert.equal(question.options.length, 3);
       assert.equal(new Set(question.options).size, 3);
       assert.ok(question.options.includes(question.answer));
+      assert.deepEqual(questionFromId(`${age}:${subject}:${index}`), { age, subject, index });
+      const activity = activityFor(question, subject);
+      if (activity) {
+        activities[activity.kind] += 1;
+        if (activity.tokens) {
+          assert.equal(activity.tokens.join(activity.separator), question.answer);
+          const tiles = activityTiles(question, activity);
+          for (const token of activity.tokens) {
+            const at = tiles.indexOf(token);
+            assert.ok(at >= 0, `${age}/${subject}/${index}: every repeated letter has its own tile`);
+            tiles.splice(at, 1);
+          }
+        } else assert.ok(Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 10000);
+      }
       assert.ok(gradeAnswer(question, question.answer));
       assert.equal(question.options.filter(choice => gradeAnswer(question, choice)).length, 1);
       for (const attempts of [0, 1, 2]) {
@@ -47,8 +62,8 @@ assert.match(answerFeedback(example, "hangul", "butterfly", 1, false).detail, /�
 assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /가방/);
 assert.match(answerFeedback(example, "hangul", example.answer, 1, false).detail, /가방/);
 assert.notEqual(answerFeedback(example, "hangul", example.answer, 0, false).title, answerFeedback(example, "hangul", example.answer, 0, false, 1).title);
-assert.match(answerFeedback(example, "hangul", example.answer, 0, false, 0, true).title, /힌트/);
-assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /직접 눌러/);
+assert.match(answerFeedback(example, "hangul", example.answer, 0, false, 0, true).title, /도움/);
+assert.match(answerFeedback(example, "hangul", "apple", 2, false).detail, /직접 답/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.math[0], "math", 11, 0, false).detail, /2 \+ 9 = 11/);
 assert.match(answerFeedback(AGE_QUESTIONS.seven.english[30], "english", "strawberry", 0, false).detail, /딸기/);
 const twoStep = AGE_QUESTIONS.eight.math[140];
@@ -84,4 +99,27 @@ badgeProgress.retryWins.push("six:hangul:0");
 badgeProgress.rememberedStages.push("hangul:0");
 badgeProgress.bestStreak = 3;
 for (const title of ["첫 반짝", "다시 해냈어", "기억 탐험가", "반짝 연속"]) assert.ok(earnedBadges(badgeProgress).some(badge => badge.title === title));
-console.log("1,500문제, 300단계, 잠금·정답·그림·소리 확인 완료");
+badgeProgress.reviewedQuestions = ["six:math:0", "six:english:0", "six:english:4"];
+badgeProgress.adventures = 3;
+for (const title of ["기억이 쑥쑥", "세상 탐험가"]) assert.ok(earnedBadges(badgeProgress).some(badge => badge.title === title));
+assert.equal(activityFor(AGE_QUESTIONS.six.math[27], "math"), null, "comparisons retain their essential choices");
+assert.equal(activityFor(AGE_QUESTIONS.six.english[15], "english"), null, "single letter questions keep their choices");
+assert.equal(activityFor(AGE_QUESTIONS.eight.english[30], "english").kind, "sentence");
+assert.equal(activityTiles(AGE_QUESTIONS.six.english[2], activityFor(AGE_QUESTIONS.six.english[2], "english")).filter(token => token === "P").length, 2);
+assert.deepEqual(validQuestionIds(["six:math:0", "six:math:0", "eight:english:164", "six:math:165", "__proto__:math:0", "six:math:-1", "six:math:01", null]), ["six:math:0", "eight:english:164"]);
+assert.deepEqual(reviewAfterAnswer(["six:math:0", "six:english:0"], "six:math:0", true), ["six:english:0"]);
+assert.deepEqual(reviewAfterAnswer(["six:math:0", "six:english:0"], "six:math:0", false), ["six:english:0", "six:math:0"]);
+for (let turn = 0; turn < 20; turn++) {
+  const beginner = { stars: 0, completedStages: [], earnedQuestions: ["six:math:0"], adventures: turn };
+  const trip = adventureQuestions("six", beginner);
+  assert.equal(trip.length, 5);
+  assert.equal(new Set(trip).size, 5);
+  assert.equal(new Set(trip.map(id => questionFromId(id).subject)).size, 3);
+  assert.ok(trip.every(id => questionFromId(id).index < 5));
+  assert.ok(!trip.includes("six:math:0"), "prefer unearned questions");
+  assert.deepEqual(adventureQuestions("eight", beginner), [], "never bypass age locks");
+}
+assert.match(answerFact(AGE_QUESTIONS.seven.math[0], "math"), /10을 만들고/);
+assert.match(answerFact(AGE_QUESTIONS.eight.hangul[110], "hangul"), /글 속 단서.*씨앗/);
+assert.match(answerFact(AGE_QUESTIONS.eight.english[30], "english"), /나는 행복해.*I am happy/);
+console.log("1,500문제, 300단계, 조립·수 만들기·탐험·복습·잠금·그림·소리 확인 완료", activities);

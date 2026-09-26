@@ -43,6 +43,9 @@ const BADGES = [
   { icon: "🔤", title: "영어 친구", goal: "영어 1단계 완료", earned: s => s.completedStages.some(id => /^(?:seven:|eight:)?english:/.test(id)) },
   { icon: "🌱", title: "다시 해냈어", goal: "다시 생각해 맞히기", earned: s => s.retryWins.length >= 1 },
   { icon: "🧠", title: "기억 탐험가", goal: "기억 카드 1개 완료", earned: s => s.rememberedStages.length >= 1 },
+  { icon: "🌼", title: "기억이 쑥쑥", goal: "복습 여행에서 3문제 스스로 해결", earned: s => (s.reviewedQuestions?.length || 0) >= 3 },
+  { icon: "🌳", title: "튼튼한 기억", goal: "복습 여행에서 15문제 스스로 해결", earned: s => (s.reviewedQuestions?.length || 0) >= 15 },
+  { icon: "🎒", title: "세상 탐험가", goal: "깜짝 탐험 3번 완료", earned: s => (s.adventures || 0) >= 3 },
   { icon: "⚡", title: "반짝 연속", goal: "3문제 연속 스스로 맞히기", earned: s => s.bestStreak >= 3 },
   { icon: "🌟", title: "별 스물다섯", goal: "별 25개", earned: s => s.stars >= 25 },
   { icon: "🧭", title: "열 걸음 탐험", goal: "10단계 완료", earned: s => s.completedStages.length >= 10 },
@@ -176,6 +179,58 @@ const levelsFor = () => AGE_LEVELS[session.age][session.subject];
 const questionsFor = () => AGE_QUESTIONS[session.age][session.subject];
 const stageId = (subject, index, age) => `${age === "six" ? "" : `${age}:`}${subject}:${index}`;
 const questionId = (subject, index, age) => `${age}:${subject}:${index}`;
+export function questionFromId(id) {
+  if (typeof id !== "string") return null;
+  const match = /^(six|seven|eight):(hangul|math|english):(0|[1-9]\d*)$/.exec(id);
+  if (!match) return null;
+  const [, age, subject, value] = match;
+  const index = Number(value);
+  return AGE_QUESTIONS[age][subject][index] ? { age, subject, index } : null;
+}
+export const validQuestionIds = ids => Array.isArray(ids) ? [...new Set(ids.filter(id => questionFromId(id)))] : [];
+
+export function activityFor(question, subject) {
+  if (question.choiceKind === "picture") return null;
+  if (subject === "math" && Number.isInteger(question.answer) && (question.count || question.operator || /[?□]/.test(question.equation || ""))) {
+    return { kind: "number", label: "🔢 숫자 만들기", instruction: "숫자 버튼으로 답을 만들어 봐!" };
+  }
+  const answer = String(question.answer);
+  if (subject === "english" && /^[A-Za-z ,.!?'-]+$/.test(answer) && answer.split(" ").length >= 2 && answer.split(" ").length <= 6) {
+    return { kind: "sentence", label: "🚂 문장 기차", instruction: "낱말을 차례로 눌러 문장을 이어 봐!", tokens: answer.split(" "), separator: " " };
+  }
+  if (subject === "english" && /^[A-Za-z]{2,10}$/.test(answer) && (question.object || /영어 낱말|영어로/.test(question.prompt))
+    || subject === "hangul" && /^[가-힣]{2,4}$/.test(answer) && (question.object || /반대말|비슷한 말/.test(question.prompt))) {
+    return { kind: "word", label: "🧩 글자 조립", instruction: "글자를 차례로 눌러 낱말을 만들어 봐!", tokens: [...answer], separator: "" };
+  }
+  return null;
+}
+
+export function activityTiles(question, activity) {
+  if (!activity?.tokens) return [];
+  const distractors = question.options.filter(option => option !== question.answer)
+    .flatMap(option => activity.kind === "sentence" ? String(option).split(" ") : [...String(option)])
+    .filter(token => !activity.tokens.includes(token));
+  return [...activity.tokens, ...new Set(distractors)].slice(0, activity.tokens.length + 2);
+}
+
+export function adventureQuestions(age, progress) {
+  const subjects = Object.keys(SUBJECTS);
+  const pools = Object.fromEntries(subjects.map(subject => [subject, AGE_QUESTIONS[age][subject]
+    .map((_, index) => questionId(subject, index, age))
+    .filter((_, index) => stageUnlocked(age, subject, Math.floor(index / ROUND_SIZE), progress))]));
+  const result = [];
+  for (let turn = 0; turn < ROUND_SIZE; turn++) {
+    const pool = pools[subjects[(turn + (progress.adventures || 0)) % subjects.length]].filter(id => !result.includes(id));
+    const fresh = pool.filter(id => !progress.earnedQuestions.includes(id));
+    const candidates = fresh.length ? fresh : pool;
+    if (candidates.length) result.push(candidates[Math.floor(Math.random() * candidates.length)]);
+  }
+  return result;
+}
+
+export function reviewAfterAnswer(ids, id, independent) {
+  return [...ids.filter(item => item !== id), ...(independent ? [] : [id])];
+}
 const completedInAge = (age, progress) => progress.completedStages.filter(id =>
   Object.entries(AGE_LEVELS[age]).some(([subject, levels]) => levels.some((_, index) => id === stageId(subject, index, age)))).length;
 
@@ -217,29 +272,43 @@ export function answerProgress(question, choice, alreadyAnswered) {
 
 const choiceLabel = (question, choice) => question.choiceKind === "picture" ? OBJECTS[choice] : String(choice);
 
-function answerFact(question, subject, solved = true) {
+export function answerFact(question, subject, solved = true) {
   const answer = choiceLabel(question, question.answer);
   const prompt = question.prompt;
+  const quoted = prompt.match(/‘([^’]+)’/);
+  const evidence = prompt.match(/[^.!?]+[.!]/g)?.map(line => line.trim()).find(line => line.includes(answer));
   if (subject === "hangul") {
     if (prompt.includes("몇 글자")) return `${answer}글자야.${solved ? " 하나씩 잘 세었어!" : ""}`;
     if (prompt.includes("첫 자음")) return `첫 자음은 ‘${answer}’이야.`;
     if (prompt.includes("첫 글자")) return `첫 글자는 ‘${answer}’야.`;
     if (prompt.includes("끝 글자")) return `끝 글자는 ‘${answer}’야.`;
     if (prompt.includes("받침")) return `받침은 ‘${answer}’이야.`;
-    if (prompt.includes("반대말")) return `반대말은 ‘${answer}’이야.`;
-    if (prompt.includes("□")) return `빈칸에는 ‘${answer}’! 이어 읽어 봐.`;
+    if (prompt.includes("반대말") && quoted) return `‘${quoted[1]}’ ↔ ‘${answer}’. 서로 반대되는 뜻이야.`;
+    if (prompt.includes("비슷한 말") && quoted) return `‘${quoted[1]}’와 ‘${answer}’는 비슷한 뜻이야.`;
+    if (prompt.includes("띄어 쓴")) return `‘${answer}’ 낱말 사이를 띄어 읽어 봐: ${answer.split(" ").join(" / ")}`;
+    if (prompt.includes("□")) return `빈칸에는 ‘${answer}’! ${prompt.split(/[.!?]/)[0].replace("□", answer).replace(/ (빈칸|알맞은).*$/, "")} → 이어 읽어 봐.`;
     if (question.choiceKind === "picture") {
       const firstSound = prompt.match(/‘([^’]+)’(?:으)?로 시작/);
       if (firstSound) return `‘${answer}’의 첫소리는 ‘${firstSound[1]}’야.`;
       return `정답은 ‘${answer}’ 그림이야.${solved ? " 잘 찾았어!" : ""}`;
     }
+    if (question.object && answer.length > 1) return `${[...answer].join(" · ")} → ${answer}. 글자를 이어서 읽어 봐.`;
+    if (evidence) return `글 속 단서: ‘${evidence}’ 그래서 답은 ‘${answer}’야.`;
     return `정답은 ‘${answer}’!${solved ? " 글을 잘 살펴봤어." : ""}`;
   }
   if (subject === "math") {
-    if (question.count) return `모두 ${answer}!${solved ? " 하나씩 잘 세었어." : ""}`;
-    if (question.operator) return `${question.left} ${question.operator === "+" ? "+" : "−"} ${question.right} = ${answer}!${solved ? " 차근차근 계산했어." : ""}`;
-    if (prompt.includes("가장 큰 수")) return `가장 큰 수는 ${answer}이야.`;
-    if (prompt.includes("가장 작은 수")) return `가장 작은 수는 ${answer}이야.`;
+    if (question.count) return `하나씩 세면 모두 ${answer}개야. 마지막으로 센 수가 전체 개수야.`;
+    if (question.operator) {
+      const { left, right, operator } = question;
+      const equation = `${left} ${operator === "+" ? "+" : "−"} ${right} = ${answer}`;
+      if (operator === "+" && left < 10 && right <= 10 && Number(answer) > 10) return `${left}에 ${10 - left}을 더해 10을 만들고, 남은 ${right - (10 - left)}을 더해 봐. ${equation}!`;
+      if (operator === "-" && left > 10 && left < 20 && Number(answer) < 10) return `${left}에서 ${left - 10}을 빼면 10. 남은 ${right - (left - 10)}을 더 빼면 ${answer}! ${equation}`;
+      if (right >= 10) return `${right}을 ${Math.floor(right / 10) * 10}과 ${right % 10}로 나누어 차례로 ${operator === "+" ? "더해" : "빼"} 봐. ${equation}!`;
+      return `${left}에서 ${right}만큼 ${operator === "+" ? "더" : "거꾸로"} 세면 ${answer}. ${equation}!`;
+    }
+    if (prompt.includes("가장 큰 수") || prompt.includes("가장 작은 수")) return `작은 순서로 ${[...question.options].sort((a, b) => a - b).join(" < ")}. ${prompt.includes("큰") ? "맨 뒤" : "맨 앞"}의 ${answer}이야.`;
+    const missing = question.equation?.match(/^(\d+)\s*([+−-])\s*□\s*=\s*(\d+)$/);
+    if (missing) return `${missing[2] === "+" ? `${missing[3]} − ${missing[1]}` : `${missing[1]} − ${missing[3]}`} = ${answer}. 빈칸에 넣으면 ${question.equation.replace("□", answer)}!`;
     if (question.equation?.includes("?") || question.equation?.includes("□")) return `${question.equation.replace(/[?□]/, answer)}!${solved ? " 규칙을 잘 찾았어." : ""}`;
     return `정답은 ${answer}!${solved ? " 수와 모양을 잘 살펴봤어." : ""}`;
   }
@@ -248,7 +317,10 @@ function answerFact(question, subject, solved = true) {
   if (prompt.includes("작은 글자")) return `짝이 되는 작은 글자는 ‘${answer}’야.`;
   if (question.object) return `${OBJECTS[question.object] || "이 그림"} = ${answer}!`;
   if (typeof question.answer === "number") return `영어 숫자는 ${answer}이야.`;
-  return `정답은 ‘${answer}’!${solved ? " 소리와 뜻을 연결했어." : ""}`;
+  if (prompt.includes("□")) return `‘${prompt.split(" 빈칸")[0].replace("□", answer)}’ 완성한 문장을 소리 내어 읽어 봐.`;
+  if (quoted && /[가-힣]/.test(quoted[1])) return `${quoted[1]} → ${answer}${/[.!?]$/.test(answer) ? "" : "."} 소리를 듣고 따라 말해 봐.`;
+  if (evidence) return `글 속 단서: ‘${evidence}’ 답은 ${answer}!`;
+  return `정답은 ‘${answer}’! 소리를 듣고 따라 말해 봐.`;
 }
 
 function answerHint(question, subject) {
@@ -295,14 +367,14 @@ function answerHint(question, subject) {
 
 export function answerFeedback(question, subject, choice, wrongAttempts, alreadyAnswered, variation = 0, usedHint = false) {
   const firstTryTitles = {
-    hangul: ["소리를 찾아냈어!", "글자를 잘 살폈어!", "낱말 탐정 성공!", "읽고 찾아냈어!", "글자 단서를 찾았어!", "한글 별이 반짝!"],
-    math: ["수를 찾아냈어!", "차근차근 풀었어!", "숫자 탐정 성공!", "규칙을 찾아냈어!", "계산 별이 반짝!", "수학 한 걸음 성공!"],
-    english: ["소리와 뜻을 이었어!", "영어 단어를 찾았어!", "영어 탐정 성공!", "잘 듣고 골랐어!", "영어 별이 반짝!", "새 단어를 익혔어!"],
+    hangul: ["알맞은 답을 찾았어!", "한 문제 해결했어!", "한글 탐정 성공!", "이번에도 맞혔어!", "다음 탐험으로 출발!", "한글 별이 반짝!"],
+    math: ["답을 찾아냈어!", "한 문제 해결했어!", "수학 탐정 성공!", "이번에도 맞혔어!", "반짝 정답이야!", "수학 한 걸음 성공!"],
+    english: ["알맞은 답이야!", "영어 한 걸음 성공!", "영어 탐정 성공!", "이번에도 맞혔어!", "영어 별이 반짝!", "한 문제 해결했어!"],
   };
   if (gradeAnswer(question, choice)) return {
     kind: "good",
     title: wrongAttempts ? ["다시 생각해 해결했어!", "한 번 더 살펴보고 찾았어!", "끝까지 찾아냈어!", "새 단서를 써서 맞혔어!"][variation % 4]
-      : usedHint ? ["힌트를 써서 해결했어!", "단서를 활용해 찾았어!", "차근차근 확인했어!"][variation % 3]
+      : usedHint ? ["도움을 써서 해결했어!", "단서를 활용해 찾았어!", "차근차근 확인했어!"][variation % 3]
       : firstTryTitles[subject][variation % firstTryTitles[subject].length],
     detail: answerFact(question, subject),
   };
@@ -312,7 +384,7 @@ export function answerFeedback(question, subject, choice, wrongAttempts, already
   };
   if (wrongAttempts >= 2) return {
     kind: "reveal", title: ["이제 정답을 함께 찾아보자!", "단서를 모아 확인해 보자!", "정답을 눌러 마무리해 보자!"][variation % 3],
-    detail: `${answerFact(question, subject, false)} 정답 카드를 직접 눌러 봐.`,
+    detail: `${answerFact(question, subject, false)} 이제 직접 답을 완성해 봐.`,
   };
   return {
     kind: "hint", title: ["다른 단서를 찾아볼까?", "천천히 다시 볼까?", "한 가지씩 살펴보자!", "소리 내어 생각해 볼까?", "다른 방법으로 해 보자!"][variation % 5],
@@ -321,7 +393,7 @@ export function answerFeedback(question, subject, choice, wrongAttempts, already
 }
 
 function loadSaved() {
-  const fallback = { stars: 0, completedStages: [], earnedQuestions: [], retryWins: [], rememberedStages: [], bestStreak: 0, age: "six", outfit: "flower", scene: "room", soundOn: true };
+  const fallback = { stars: 0, completedStages: [], earnedQuestions: [], retryWins: [], rememberedStages: [], reviewQuestions: [], reviewedQuestions: [], adventures: 0, bestStreak: 0, age: "six", outfit: "flower", scene: "room", soundOn: true };
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
     if (!raw || typeof raw !== "object") return fallback;
@@ -344,6 +416,9 @@ function loadSaved() {
       completedStages: [...new Set(completedStages)],
       earnedQuestions: [...new Set(earnedQuestions)],
       retryWins: Array.isArray(raw.retryWins) ? [...new Set(raw.retryWins.filter(id => typeof id === "string"))] : [],
+      reviewQuestions: validQuestionIds(raw.reviewQuestions ?? raw.retryWins),
+      reviewedQuestions: validQuestionIds(raw.reviewedQuestions),
+      adventures: Number.isSafeInteger(raw.adventures) && raw.adventures >= 0 ? raw.adventures : 0,
       rememberedStages: Array.isArray(raw.rememberedStages) ? [...new Set(raw.rememberedStages.filter(id => completedStages.includes(id)))] : [],
       bestStreak: Number.isSafeInteger(raw.bestStreak) && raw.bestStreak >= 0 ? raw.bestStreak : 0,
       age: Object.hasOwn(AGE_LEVELS, raw.age) ? raw.age : "six",
@@ -357,7 +432,7 @@ function loadSaved() {
 }
 
 const state = typeof document === "undefined" ? null : loadSaved();
-const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, newStars: 0, firstTry: 0, recovered: 0, helped: 0, streak: 0, missedIndices: [], badgesBefore: [], recall: false, recallReady: false, recallDone: false, countStep: 0, readStep: -1, choices: [], hintShown: false, answered: false, wrongChoice: null, wrongChoices: [], feedback: null };
+const session = { view: "home", age: state?.age || "six", subject: null, level: 0, index: 0, newStars: 0, firstTry: 0, recovered: 0, helped: 0, streak: 0, missedIndices: [], badgesBefore: [], recall: false, recallReady: false, recallDone: false, trip: "", tripQuestions: [], tripPosition: 0, tripMastered: 0, mode: "choice", tiles: [], selectedTiles: [], draft: "", supportUsed: false, countStep: 0, readStep: -1, choices: [], hintShown: false, answered: false, wrongChoice: null, wrongChoices: [], feedback: null, feedbackTurn: 0 };
 const CORRECT_EFFECTS = ["applause", "sparkle", "fanfare"];
 const PRAISE_VOICES = ["praise", "praise-1", "praise-2", "praise-3"];
 const RETRY_VOICES = ["retry", "retry-1", "retry-2"];
@@ -374,8 +449,8 @@ function currentQuestion() {
   return questionsFor()[session.level * ROUND_SIZE + session.index];
 }
 
-function shuffleChoices(question) {
-  const choices = [...question.options];
+function shuffle(choices) {
+  choices = [...choices];
   for (let index = choices.length - 1; index > 0; index--) {
     const other = Math.floor(Math.random() * (index + 1));
     [choices[index], choices[other]] = [choices[other], choices[index]];
@@ -384,7 +459,53 @@ function shuffleChoices(question) {
 }
 
 function currentMission() {
+  if (session.trip === "review") return { icon: "🌱", title: "기억 새싹 키우기", finish: "기억 새싹이 자랐어!" };
+  if (session.trip === "adventure") return { icon: "🧭", title: "세 과목 깜짝 탐험", finish: "세 과목 탐험 성공!" };
   return MISSIONS[(session.level + Object.keys(SUBJECTS).indexOf(session.subject) + Object.keys(AGE_LEVELS).indexOf(session.age)) % MISSIONS.length];
+}
+
+const currentId = () => questionId(session.subject, session.level * ROUND_SIZE + session.index, session.age);
+const roundPosition = () => session.trip ? session.tripPosition : session.index;
+const roundLength = () => session.trip ? session.tripQuestions.length : ROUND_SIZE;
+const thinkingFirst = () => (session.recall || session.trip === "review") && !session.recallReady;
+const availableReviews = () => state.reviewQuestions.filter(id => {
+  const item = questionFromId(id);
+  return item && stageUnlocked(item.age, item.subject, Math.floor(item.index / ROUND_SIZE), state);
+});
+
+function resetQuestion() {
+  const question = currentQuestion();
+  const activity = activityFor(question, session.subject);
+  Object.assign(session, { answered: false, wrongChoice: null, wrongChoices: [], feedback: null, hintShown: false, recallReady: false,
+    supportUsed: false, countStep: 0, readStep: -1, choices: shuffle(question.options), draft: "", selectedTiles: [],
+    tiles: shuffle(activityTiles(question, activity)), mode: activity && !session.recall && (session.level * ROUND_SIZE + session.index + session.tripPosition) % 2 === 0 ? "build" : "choice" });
+}
+
+function queueReview() {
+  const id = currentId();
+  if (!state.reviewQuestions.includes(id)) { state.reviewQuestions.push(id); save(); }
+  if (!session.recall && !session.missedIndices.includes(session.index)) session.missedIndices.push(session.index);
+}
+
+function loadTripQuestion() {
+  const item = questionFromId(session.tripQuestions[session.tripPosition]);
+  session.age = item.age;
+  session.subject = item.subject;
+  session.level = Math.floor(item.index / ROUND_SIZE);
+  session.index = item.index % ROUND_SIZE;
+  resetQuestion();
+  go("game");
+  playQuestion();
+}
+
+function startTrip(kind) {
+  if (!["review", "adventure"].includes(kind)) return;
+  const questions = kind === "review" ? availableReviews().slice(0, ROUND_SIZE) : adventureQuestions(state.age, state);
+  if (!questions.length) return;
+  Object.assign(session, { trip: kind, tripQuestions: questions, tripPosition: 0, tripMastered: 0,
+    newStars: 0, firstTry: 0, recovered: 0, helped: 0, streak: 0, missedIndices: [], recall: false, recallDone: false,
+    badgesBefore: earnedBadges(state).map(badge => badge.title) });
+  loadTripQuestion();
 }
 
 function save() {
@@ -392,6 +513,7 @@ function save() {
 }
 
 function audioFailure(error) {
+  if (error?.name === "AbortError") return;
   const status = document.querySelector("#audio-status");
   status.textContent = error?.name === "NotAllowedError"
     ? "소리를 켜려면 화면 위 스피커를 눌러 주세요."
@@ -405,6 +527,7 @@ function playClip(player, file, onended) {
   player.src = `${AUDIO}${file}.mp3?v=3`;
   player.currentTime = 0;
   player.play().then(() => { document.querySelector("#audio-status").hidden = true; }).catch(error => {
+    if (error?.name === "AbortError") return;
     audioFailure(error);
     if (onended) onended();
   });
@@ -470,6 +593,10 @@ function renderHome() {
       <div class="age-switch" role="group" aria-label="놀이 난이도">${ages}</div>
       ${nextAge && !ageUnlocked(nextAge, state) ? `<p class="unlock-hint">다음 도전은 별 ${AGE_STAR_GATE[nextAge]}개와 ${nextAge === "seven" ? "기본 놀이 10단계" : "7살 도전 15단계"}를 끝내면 열려요.</p>` : ""}
       <div class="subject-list">${subjectCards}</div>
+      <div class="trip-list">
+        <button class="trip-card adventure" type="button" data-action="adventure"><span aria-hidden="true">🎒</span><span><strong>깜짝 탐험</strong><small>세 과목을 섞어 5문제 · 매번 새롭게!</small></span><b aria-hidden="true">→</b></button>
+        <button class="trip-card review" type="button" data-action="review" ${availableReviews().length ? "" : "disabled"}><span aria-hidden="true">🌱</span><span><strong>복습 여행 ${availableReviews().length ? `· ${availableReviews().length}개` : ""}</strong><small>${availableReviews().length ? "전에 어려웠던 문제, 다시 만나 볼까?" : "도움받은 문제가 생기면 여기 모여요"}</small></span><b aria-hidden="true">→</b></button>
+      </div>
       <div class="home-progress" aria-label="끝낸 놀이 ${done}개 중 ${total}개">
         <span class="progress-copy">끝낸 놀이</span>
         <span class="progress-track" aria-hidden="true"><span class="progress-fill" style="--fill:${done / total * 100}%"></span></span>
@@ -520,16 +647,37 @@ function renderLevels() {
 function renderSteps() {
   if (session.recall) return '<div class="steps recall-step" aria-label="기억 카드 한 문제">🧠 기억 카드</div>';
   let html = "";
-  for (let index = 0; index < ROUND_SIZE; index++) {
+  for (let index = 0; index < roundLength(); index++) {
     if (index) html += '<span class="step-line" aria-hidden="true"></span>';
-    html += `<span class="step-dot ${index === session.index ? "current" : index < session.index ? "done" : ""}" aria-hidden="true">${index + 1}</span>`;
+    html += `<span class="step-dot ${index === roundPosition() ? "current" : index < roundPosition() ? "done" : ""}" aria-hidden="true">${index + 1}</span>`;
   }
-  return `<div class="steps" aria-label="${session.index + 1}번째 문제, 전체 ${ROUND_SIZE}개">${html}<span class="step-caption">${session.index + 1} / ${ROUND_SIZE}</span></div>`;
+  return `<div class="steps" aria-label="${roundPosition() + 1}번째 문제, 전체 ${roundLength()}개">${html}<span class="step-caption">${roundPosition() + 1} / ${roundLength()}</span></div>`;
+}
+
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+
+function renderActivity(activity) {
+  const number = activity.kind === "number";
+  const ready = number ? session.draft.length > 0 : session.selectedTiles.filter(Number.isInteger).length === activity.tokens.length;
+  const answer = number ? `<output class="number-draft" aria-label="만든 수">${session.draft || "?"}</output>`
+    : `<div class="answer-slots ${activity.kind}" role="group" aria-label="만든 답, 눌러서 빼기">${activity.tokens.map((_, index) => {
+      const token = session.tiles[session.selectedTiles[index]];
+      return token === undefined ? '<span class="answer-slot empty" aria-hidden="true">·</span>'
+        : `<button class="answer-slot filled" type="button" data-action="remove-tile" data-value="${index}" aria-label="${index + 1}번째 ${escapeHtml(token)} 빼기" ${session.answered ? "disabled" : ""}>${escapeHtml(token)}</button>`;
+    }).join("")}</div>`;
+  const keys = number ? Array.from({ length: 10 }, (_, index) => (index + 1) % 10) : session.tiles;
+  return `<div class="activity-board ${activity.kind} ${session.answered ? "solved" : ""}">
+    <p class="activity-instruction">${session.answered ? "✨ 완성했어! 소리 내어 답을 읽어 봐." : activity.instruction}</p>
+    ${answer}
+    ${!session.answered ? `<div class="tile-tray ${number ? "number-pad" : ""}" role="group" aria-label="${number ? "숫자 버튼" : "조립할 조각"}">${keys.map((key, index) => `<button type="button" class="build-tile" data-action="${number ? "digit" : "tile"}" data-value="${number ? key : index}" aria-label="${escapeHtml(key)} ${number ? "입력" : "추가"}" ${number ? session.draft.length >= 4 ? "disabled" : "" : session.selectedTiles.includes(index) || ready ? "disabled" : ""}>${escapeHtml(key)}</button>`).join("")}</div>
+    <div class="build-actions"><button class="undo-button" type="button" data-action="undo" ${session.draft ? "" : "disabled"}>↶ 하나 지우기</button><button class="primary-button check-button" type="button" data-action="check-answer" ${ready ? "" : "disabled"}>완성! 확인 ✓</button></div>` : ""}
+  </div>`;
 }
 
 function renderGame() {
   const subject = SUBJECTS[session.subject];
   const question = currentQuestion();
+  const activity = activityFor(question, session.subject);
   const mission = currentMission();
   const words = question.prompt.split(/\s+/);
   const questionText = session.subject === "hangul" ? words.map((word, index) => `<span class="reading-word ${index === session.readStep ? "active" : ""}">${word}</span>`).join(" ") : question.prompt;
@@ -555,26 +703,27 @@ function renderGame() {
     const mark = response === "correct" ? "✓" : response === "answer-hint" ? "💡" : response === "wrong" ? "↻" : "";
     return `<div class="choice-wrap"><button class="choice-card ${isNumber ? "number" : artId ? "picture" : "text"} ${isNumber && String(label).length >= 3 ? "triple-number" : ""} ${/^[A-Z]{7,}$/.test(String(label)) ? "long-word" : ""} ${response}" type="button" data-action="answer" data-value="${choice}" aria-label="${label}">${mark ? `<span class="choice-mark" aria-hidden="true">${mark}</span>` : ""}${picture}<span class="choice-word">${label}</span></button>${session.subject === "english" ? `<button class="choice-listen" type="button" data-action="listen-choice" data-value="${choice}" aria-label="${label} 소리 듣기">🔊</button>` : ""}</div>`;
   }).join("");
-  const response = session.feedback || (session.recall && !session.recallReady
+  const response = session.feedback || (thinkingFirst()
     ? { kind: "idle", title: "먼저 답을 떠올려 봐!", detail: "생각이 끝나면 보기를 열어 보자." }
-    : { kind: "idle", title: question.operator && question.left > 10 ? "차근차근 계산해 보자!" : question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" });
+    : { kind: "idle", title: session.mode === "build" ? activity.instruction : question.operator && question.left > 10 ? "차근차근 계산해 보자!" : question.choiceKind === "picture" || question.count || question.operator || question.object || question.color ? "그림을 보고 골라보자!" : "천천히 생각해 보자!", detail: "" });
   const icon = { idle: "👀", good: "✨", hint: "💡", reveal: "🔎", explore: "🌱" }[response.kind];
   const feedback = `<div class="feedback-message ${response.kind}" role="status"><span class="feedback-icon" aria-hidden="true">${icon}</span>${avatar("feedback-avatar", true)}<span class="feedback-copy"><strong>${response.title}</strong>${response.detail ? `<span>${response.detail}</span>` : ""}</span></div>`;
   const countMax = question.count && question.count <= 10 ? question.count : question.operator && question.left <= 20 && question.right <= 10 ? question.right : 0;
   const countValue = question.count ? session.countStep : question.left + (question.operator === "+" ? session.countStep : -session.countStep);
-  const countTool = countMax && !session.answered ? `<div class="count-tool"><span>${session.countStep ? `지금 ${countValue}${session.countStep === countMax ? " · 보기에서 찾아봐!" : ""}` : question.count ? "그림을 하나씩 세어 봐" : `${question.left}부터 ${question.operator === "+" ? "더해" : "빼"} 보자`}</span><button type="button" data-action="count-step" ${session.countStep === countMax ? "disabled" : ""}>${question.count ? "하나 세기" : question.operator === "+" ? "+1 해 보기" : "−1 해 보기"}</button></div>` : "";
+  const countTool = countMax && !session.answered ? `<div class="count-tool"><span>${session.countStep ? `지금 ${countValue}${session.countStep === countMax ? " · 답을 완성해 봐!" : ""}` : question.count ? "그림을 하나씩 세어 봐" : `${question.left}부터 ${question.operator === "+" ? "더해" : "빼"} 보자`}</span><button type="button" data-action="count-step" ${session.countStep === countMax ? "disabled" : ""}>${question.count ? "하나 세기" : question.operator === "+" ? "+1 해 보기" : "−1 해 보기"}</button></div>` : "";
   const readTool = session.subject === "hangul" && !session.answered ? `<div class="read-tool"><span>${session.readStep < 0 ? "문장을 나눠 읽어 봐" : `‘${words[session.readStep]}’ 읽어 볼까?`}</span><button type="button" data-action="read-step">${session.readStep < 0 ? "한 마디씩 읽기" : "다음 말 보기"}</button></div>` : "";
-  const tools = !session.recall || session.recallReady ? `<div class="learning-tools">${!session.answered && !session.hintShown ? '<button type="button" data-action="hint">💡 힌트 보기</button>' : ""}${countTool}${readTool}</div>` : "";
-  const progress = Array.from({ length: ROUND_SIZE }, (_, index) => `<span class="${index < session.index + Number(session.answered) ? "filled" : ""}" aria-hidden="true">${index < session.index + Number(session.answered) ? mission.icon : "○"}</span>`).join("");
+  const tools = !thinkingFirst() ? `<div class="learning-tools">${!session.answered && !session.hintShown ? '<button type="button" data-action="hint">💡 힌트 보기</button>' : ""}${countTool}${readTool}</div>` : "";
+  const progress = Array.from({ length: roundLength() }, (_, index) => `<span class="${index < roundPosition() + Number(session.answered) ? "filled" : ""}" aria-hidden="true">${index < roundPosition() + Number(session.answered) ? mission.icon : "○"}</span>`).join("");
+  const modeBar = activity ? `<div class="activity-mode"><strong>${session.mode === "build" ? activity.label : "🔎 보기 탐정"}</strong><button type="button" data-action="switch-mode">${session.mode === "build" ? session.answered ? "다른 보기도 살펴보기" : "보기로 풀기" : `${activity.label.slice(3)} 도전`}</button>${session.mode === "build" && session.subject === "english" ? `<button class="activity-listen" type="button" data-action="listen-choice" data-value="${escapeHtml(question.answer)}" aria-label="만들 답 소리 듣기">🔊<span> 답 소리 듣기</span></button>` : ""}</div>` : "";
   return `<section class="game-screen" aria-label="${subject.title}">
-    <div class="subpage-top"><button class="back-button" type="button" data-action="levels">${homeSvg()} 단계 고르기</button><div class="game-heading"><h1 class="page-title">${subject.title}</h1><span class="game-level">${session.age === "six" ? "" : `${AGE_NAMES[session.age]} · `}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
+    <div class="subpage-top"><button class="back-button" type="button" data-action="${session.trip ? "home" : "levels"}">${homeSvg()} ${session.trip ? "홈으로 가기" : "단계 고르기"}</button><div class="game-heading"><h1 class="page-title">${session.trip === "review" ? "복습 여행" : session.trip ? "깜짝 탐험" : subject.title}</h1><span class="game-level">${session.trip ? `${subject.label} · ` : ""}${session.age === "six" ? "" : `${AGE_NAMES[session.age]} · `}${session.level + 1}단계 · ${levelsFor()[session.level]}</span></div>${renderSteps()}</div>
     <div class="game-layout">
       <div class="game-main">
-        ${session.recall ? '<div class="mission-strip memory">보기를 보기 전에 답을 말해 봐!</div>' : `<div class="mission-strip"><strong>${mission.icon} ${mission.title}</strong><span class="mission-progress" aria-label="${session.index + Number(session.answered)}개 완료, 전체 5개">${progress}</span>${session.streak >= 2 ? `<small>✨ 연속 ${session.streak}번</small>` : ""}</div>`}
+        ${session.recall ? '<div class="mission-strip memory">보기를 보기 전에 답을 말해 봐!</div>' : `<div class="mission-strip"><strong>${mission.icon} ${mission.title}</strong><span class="mission-progress" aria-label="${roundPosition() + Number(session.answered)}개 완료, 전체 ${roundLength()}개">${progress}</span>${session.streak >= 2 ? `<small>✨ 연속 ${session.streak}번</small>` : ""}</div>`}
         <div class="question-panel ${question.prompt.length > 38 ? "long-question" : ""}"><div class="question-content"><span class="question-text">${questionText}</span>${illustration}</div><button class="speak-button" type="button" data-action="speak-question" aria-label="문제 다시 듣기">${speakerSvg()}</button></div>
-        ${session.recall && !session.recallReady ? '<button class="primary-button recall-reveal" type="button" data-action="reveal-choices">생각했어! 보기 열기 →</button>' : `<div class="choice-grid ${question.options.some(choice => String(choice).length > 18) ? "long-choices" : ""}">${choices}</div>`}
+        ${thinkingFirst() ? '<button class="primary-button recall-reveal" type="button" data-action="reveal-choices">생각했어! 답 만들기 →</button>' : `${modeBar}${session.mode === "build" && activity ? renderActivity(activity) : `<div class="choice-grid ${question.options.some(choice => String(choice).length > 18) ? "long-choices" : ""}">${choices}</div>`}`}
         ${tools}
-        <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.recall ? "기억 카드 마치기" : session.index === ROUND_SIZE - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
+        <div class="feedback-row">${feedback}${session.answered ? `<button class="primary-button next-button" type="button" data-action="next">${session.recall ? "기억 카드 마치기" : roundPosition() === roundLength() - 1 ? "결과 보기" : "다음 문제"} →</button>` : ""}</div>
       </div>
       <div class="game-side">${avatar("game-avatar")}<div class="game-speech">${session.feedback?.title || "천천히 골라봐! ♥"}</div></div>
     </div>
@@ -602,16 +751,16 @@ function renderWardrobe() {
 function renderResult() {
   const nextLevel = session.level + 1;
   const hasNext = nextLevel < levelsFor().length;
-  const nextOpen = hasNext && stageUnlocked(session.age, session.subject, nextLevel, state);
+  const nextOpen = !session.trip && hasNext && stageUnlocked(session.age, session.subject, nextLevel, state);
   const mission = currentMission();
   const newBadges = earnedBadges(state).filter(badge => !session.badgesBefore.includes(badge.title));
   return `<section class="result" aria-label="놀이 완료"><div class="result-panel">
-    <div class="result-copy">${starSvg()}<h1>${mission.finish}</h1><p>${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료! ${session.newStars ? `새로운 반짝 별 ${session.newStars}개를 모았어.` : "다시 풀며 연습했어."}</p>
-      <div class="round-recap">${session.firstTry ? `<span>✨ 스스로 찾기 ${session.firstTry}</span>` : ""}${session.helped ? `<span>💡 힌트 활용 ${session.helped}</span>` : ""}${session.recovered ? `<span>🌱 다시 성공 ${session.recovered}</span>` : ""}</div>
-      ${session.recallDone ? '<p class="recall-done">🧠 기억 카드도 완성했어!</p>' : '<p class="recall-invite">🧠 기억 카드: 보기 전에 답을 떠올려 볼까?</p>'}
+    <div class="result-copy">${starSvg()}<h1>${mission.finish}</h1><p>${session.trip ? `${roundLength()}문제 탐험 완료!` : `${SUBJECTS[session.subject].label} ${session.level + 1}단계 완료!`} ${session.newStars ? `새로운 반짝 별 ${session.newStars}개를 모았어.` : "다시 풀며 연습했어."}</p>
+      <div class="round-recap">${session.firstTry ? `<span>✨ 스스로 찾기 ${session.firstTry}</span>` : ""}${session.helped ? `<span>💡 도움 활용 ${session.helped}</span>` : ""}${session.recovered ? `<span>🌱 다시 성공 ${session.recovered}</span>` : ""}</div>
+      ${session.trip ? `<p class="recall-done">${session.trip === "review" ? `🌱 ${session.tripMastered}문제를 스스로 해결해서 복습 목록에서 졸업했어!` : "한글·수학·영어를 두루 만나 봤어!"}</p><p class="recall-invite">잠깐 몸을 쭉 펴고 쉬어도 좋아.</p>` : session.recallDone ? '<p class="recall-done">🧠 기억 카드도 완성했어!</p>' : '<p class="recall-invite">🧠 기억 카드: 보기 전에 답을 떠올려 볼까?</p>'}
       ${newBadges.length ? `<div class="new-stickers"><strong>새 스티커를 모았어!</strong><span>${newBadges.map(badge => `${badge.icon} ${badge.title}`).join(" · ")}</span></div>` : ""}
-      ${hasNext && !nextOpen ? `<p class="result-unlock">다음 단계는 별 ${AGE_STAR_GATE[session.age] + nextLevel * ROUND_SIZE - state.stars}개를 더 모으면 열려요.</p>` : ""}
-      <div class="result-actions">${!session.recallDone ? '<button class="primary-button" type="button" data-action="recall">기억 카드 도전 →</button>' : ""}${nextOpen ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button><button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="stickers">스티커북</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
+      ${!session.trip && hasNext && !nextOpen ? `<p class="result-unlock">다음 단계는 별 ${AGE_STAR_GATE[session.age] + nextLevel * ROUND_SIZE - state.stars}개를 더 모으면 열려요.</p>` : ""}
+      <div class="result-actions">${session.trip ? '<button class="primary-button" type="button" data-action="home">다음 놀이 고르기 →</button>' : `${!session.recallDone ? '<button class="primary-button" type="button" data-action="recall">기억 카드 도전 →</button>' : ""}${nextOpen ? '<button class="primary-button" type="button" data-action="next-level">다음 단계 →</button>' : ''}<button class="back-button" type="button" data-action="replay">다시 놀기</button>`}<button class="back-button" type="button" data-action="levels">단계 고르기</button><button class="back-button" type="button" data-action="stickers">스티커북</button><button class="back-button" type="button" data-action="wardrobe">꾸미기</button></div>
     </div>${avatar("result-avatar")}
   </div></section>`;
 }
@@ -627,6 +776,7 @@ function render() {
 }
 
 function go(view) {
+  if (view === "home") { session.age = state.age; session.trip = ""; session.recall = false; }
   session.view = view;
   render();
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -634,6 +784,7 @@ function go(view) {
 
 function openLevels(subject) {
   if (!(subject in SUBJECTS) || !ageUnlocked(session.age, state)) return;
+  session.trip = "";
   session.subject = subject;
   go("levels");
 }
@@ -641,6 +792,8 @@ function openLevels(subject) {
 function start(level) {
   if (!session.subject || !Number.isInteger(level) || !stageUnlocked(session.age, session.subject, level, state)) return;
   session.level = level;
+  session.trip = "";
+  session.tripPosition = 0;
   session.index = 0;
   session.newStars = 0;
   session.firstTry = 0;
@@ -652,40 +805,27 @@ function start(level) {
   session.recall = false;
   session.recallReady = false;
   session.recallDone = false;
-  session.countStep = 0;
-  session.readStep = -1;
-  session.choices = shuffleChoices(currentQuestion());
-  session.hintShown = false;
-  session.answered = false;
-  session.wrongChoice = null;
-  session.wrongChoices = [];
-  session.feedback = null;
+  resetQuestion();
   go("game");
   playQuestion();
 }
 
 function startRecall() {
-  if (session.view !== "result") return;
+  if (session.view !== "result" || session.trip) return;
   session.badgesBefore = earnedBadges(state).map(badge => badge.title);
   session.index = session.missedIndices[0] ?? session.level % ROUND_SIZE;
   session.recall = true;
   session.recallReady = false;
-  session.countStep = 0;
-  session.readStep = -1;
-  session.choices = shuffleChoices(currentQuestion());
-  session.hintShown = false;
-  session.answered = false;
-  session.wrongChoice = null;
-  session.wrongChoices = [];
-  session.feedback = null;
+  resetQuestion();
   go("game");
   playQuestion();
 }
 
 function showHint() {
-  if (session.view !== "game" || session.answered || session.hintShown || session.recall && !session.recallReady) return;
+  if (session.view !== "game" || session.answered || session.hintShown || thinkingFirst()) return;
   session.hintShown = true;
-  if (!session.recall && !session.missedIndices.includes(session.index)) session.missedIndices.push(session.index);
+  session.supportUsed = true;
+  queueReview();
   session.feedback = { kind: "hint", title: ["단서를 찾아보자!", "이렇게 해 볼까?", "한 걸음씩 풀어 보자!"][(session.level + session.index) % 3], detail: answerHint(currentQuestion(), session.subject) };
   render();
 }
@@ -695,6 +835,8 @@ function countStep() {
   const question = currentQuestion();
   const max = question.count && question.count <= 10 ? question.count : question.operator && question.left <= 20 && question.right <= 10 ? question.right : 0;
   if (!max || session.countStep >= max) return;
+  session.supportUsed = true;
+  queueReview();
   session.countStep += 1;
   render();
 }
@@ -705,18 +847,61 @@ function readStep() {
   render();
 }
 
-function answer(value) {
-  if (session.view !== "game" || session.recall && !session.recallReady) return;
+function editActivity(action, value) {
+  if (session.view !== "game" || session.mode !== "build" || session.answered || thinkingFirst()) return;
+  const activity = activityFor(currentQuestion(), session.subject);
+  if (!activity) return;
+  if (activity.kind === "number") {
+    if (action === "digit" && /^\d$/.test(value) && session.draft.length < 4) session.draft += value;
+    if (action === "undo") session.draft = session.draft.slice(0, -1);
+  } else {
+    const index = Number(value);
+    if (action === "tile" && Number.isInteger(index) && session.tiles[index] !== undefined && !session.selectedTiles.includes(index) && session.selectedTiles.filter(Number.isInteger).length < activity.tokens.length) {
+      const empty = session.selectedTiles.indexOf(null);
+      if (empty >= 0) session.selectedTiles[empty] = index;
+      else session.selectedTiles.push(index);
+    }
+    if (action === "remove-tile" && Number.isInteger(index) && index >= 0 && index < session.selectedTiles.length) session.selectedTiles[index] = null;
+    if (action === "undo") {
+      while (session.selectedTiles.at(-1) === null) session.selectedTiles.pop();
+      session.selectedTiles.pop();
+    }
+    session.draft = session.selectedTiles.map(tile => session.tiles[tile]).join(activity.separator);
+  }
+  render();
+  document.querySelector(activity.kind === "number" ? `[data-action="${action === "undo" ? "undo" : "digit"}"]:not(:disabled)` : '.build-tile:not(:disabled), [data-action="check-answer"]:not(:disabled)')?.focus({ preventScroll: true });
+}
+
+function switchMode() {
+  if (session.view !== "game" || thinkingFirst()) return;
+  const activity = activityFor(currentQuestion(), session.subject);
+  if (!activity) return;
+  if (session.mode === "build" && !session.answered) { session.supportUsed = true; queueReview(); }
+  session.mode = session.mode === "build" ? "choice" : "build";
+  if (session.answered) {
+    session.draft = String(currentQuestion().answer);
+    session.selectedTiles = [];
+    for (const token of activity.tokens || []) session.selectedTiles.push(session.tiles.findIndex((tile, index) => tile === token && !session.selectedTiles.includes(index)));
+  }
+  render();
+}
+
+function answer(value, fromActivity = false) {
+  if (session.view !== "game" || thinkingFirst()) return;
   const question = currentQuestion();
   const choice = typeof question.answer === "number" ? Number(value) : value;
-  if (!question.options.includes(choice)) return;
+  if (fromActivity) {
+    const activity = activityFor(question, session.subject);
+    if (session.mode !== "build" || !activity || value !== session.draft || !value || session.answered) return;
+    if (activity.kind === "number" ? !/^\d{1,4}$/.test(value) : session.selectedTiles.filter(Number.isInteger).length !== activity.tokens.length) return;
+  } else if (!question.options.includes(choice)) return;
   const questionIndex = session.level * ROUND_SIZE + session.index;
-  const variation = questionIndex + (session.age === "six" ? 0 : session.age === "seven" ? 500 : 1000);
+  const variation = questionIndex + session.feedbackTurn++ + (session.age === "six" ? 0 : session.age === "seven" ? 500 : 1000);
   const earnedId = questionId(session.subject, questionIndex, session.age);
   const { correct, awardStar } = answerProgress(question, choice, session.answered || state.earnedQuestions.includes(earnedId));
   if (correct && session.answered) {
     session.wrongChoice = null;
-    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation, session.hintShown);
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, true, variation, session.supportUsed);
     render();
     document.querySelector(".feedback-row").scrollIntoView({ block: "nearest" });
     if (session.subject === "english") playEnglishChoice(choice);
@@ -725,7 +910,15 @@ function answer(value) {
   if (correct) {
     session.answered = true;
     session.wrongChoice = null;
-    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation, session.hintShown);
+    session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, false, variation, session.supportUsed);
+    if (fromActivity && !session.wrongChoices.length && !session.supportUsed) {
+      const titles = {
+        sentence: ["낱말 기차 완성! 출발!", "낱말이 모여 문장이 됐어!", "알맞은 순서로 이어 줬어!", "문장을 직접 만들었어!"],
+        number: ["수를 직접 만들어 해결했어!", "숫자 버튼으로 정답 완성!", "만든 수가 딱 맞아!", "숫자 미션 성공!"],
+        word: ["글자 조각을 이어 완성했어!", "낱말 퍼즐 완성!", "글자가 모여 낱말이 됐어!", "알맞은 글자를 이어 줬어!"],
+      };
+      session.feedback.title = titles[activityFor(question, session.subject).kind][variation % 4];
+    }
     if (session.recall) {
       const id = stageId(session.subject, session.level, session.age);
       if (!state.rememberedStages.includes(id)) { state.rememberedStages.push(id); save(); }
@@ -735,7 +928,7 @@ function answer(value) {
         session.recovered += 1;
         session.streak = 0;
         if (!state.retryWins.includes(earnedId)) state.retryWins.push(earnedId);
-      } else if (session.hintShown) {
+      } else if (session.supportUsed) {
         session.helped += 1;
         session.streak = 0;
       } else {
@@ -748,6 +941,15 @@ function answer(value) {
         state.earnedQuestions.push(earnedId);
         session.newStars += 1;
       }
+      if (session.trip === "review") {
+        const independent = !session.wrongChoices.length && !session.supportUsed;
+        state.reviewQuestions = reviewAfterAnswer(state.reviewQuestions, earnedId, independent);
+        if (independent) {
+          session.tripMastered += 1;
+          if (!state.reviewedQuestions.includes(earnedId)) state.reviewedQuestions.push(earnedId);
+          session.feedback.title = "전에 어려웠던 문제, 이번엔 스스로 해냈어!";
+        } else session.feedback.detail += " 다음 여행에서 한 번 더 만나 보자.";
+      }
       save();
     }
     playClip(audio.effect, CORRECT_EFFECTS[variation % CORRECT_EFFECTS.length]);
@@ -758,13 +960,20 @@ function answer(value) {
     session.wrongChoice = choice;
     if (!session.answered && !session.wrongChoices.includes(choice)) {
       session.wrongChoices.push(choice);
-      if (!session.recall && !session.missedIndices.includes(session.index)) session.missedIndices.push(session.index);
+      queueReview();
       session.streak = 0;
     }
     session.feedback = answerFeedback(question, session.subject, choice, session.wrongChoices.length, session.answered, variation);
+    if (fromActivity && session.wrongChoices.length < 2) {
+      const activity = activityFor(question, session.subject);
+      if (activity.tokens) {
+        const mismatch = activity.tokens.findIndex((token, index) => token !== session.tiles[session.selectedTiles[index]]);
+        session.feedback.detail = `${mismatch + 1}번째 ${activity.kind === "sentence" ? "낱말" : "글자"}부터 다시 살펴봐. 조각을 누르면 뺄 수 있어. ${answerHint(question, session.subject)}`;
+      } else session.feedback.detail = `만든 수 ${choice}은 답보다 ${choice > question.answer ? "커" : "작아"}. ${answerHint(question, session.subject)}`;
+    }
     if (!session.answered) playClip(audio.effect, "try-again");
     const voice = session.answered ? null : session.wrongChoices.length >= 2 ? "reveal" : RETRY_VOICES[variation % RETRY_VOICES.length];
-    if (session.subject === "english") playEnglishChoice(session.wrongChoices.length >= 2 && !session.answered ? question.answer : choice, voice ? () => playClip(audio.voice, voice) : null);
+    if (session.subject === "english" && (question.options.includes(choice) || session.wrongChoices.length >= 2)) playEnglishChoice(session.wrongChoices.length >= 2 && !session.answered ? question.answer : choice, voice ? () => playClip(audio.voice, voice) : null);
     else if (voice) playClip(audio.voice, voice);
   }
   render();
@@ -772,8 +981,21 @@ function answer(value) {
 }
 
 function next() {
-  if (!session.answered) return;
+  if (session.view !== "game" || !session.answered) return;
   audio.effect.pause();
+  if (session.trip) {
+    if (session.tripPosition < session.tripQuestions.length - 1) {
+      session.tripPosition += 1;
+      loadTripQuestion();
+    } else {
+      if (session.trip === "adventure") state.adventures += 1;
+      save();
+      go("result");
+      playClip(audio.effect, "level-up");
+      playClip(audio.voice, "complete");
+    }
+    return;
+  }
   if (session.recall) {
     session.recall = false;
     session.recallDone = true;
@@ -790,15 +1012,8 @@ function next() {
     return;
   }
   session.index += 1;
-  session.answered = false;
-  session.wrongChoice = null;
-  session.wrongChoices = [];
-  session.feedback = null;
-  session.hintShown = false;
-  session.countStep = 0;
-  session.readStep = -1;
-  session.choices = shuffleChoices(currentQuestion());
-  render();
+  resetQuestion();
+  go("game");
   playQuestion();
 }
 
@@ -824,6 +1039,11 @@ if (typeof document !== "undefined") {
       case "stickers": go("stickers"); break;
       case "levels": openLevels(button.dataset.subject || session.subject); break;
       case "start": start(Number(button.dataset.level)); break;
+      case "adventure": startTrip("adventure"); break;
+      case "review": startTrip("review"); break;
+      case "switch-mode": switchMode(); break;
+      case "tile": case "digit": case "remove-tile": case "undo": editActivity(button.dataset.action, button.dataset.value); break;
+      case "check-answer": answer(session.draft, true); break;
       case "answer": answer(button.dataset.value); break;
       case "hint": showHint(); break;
       case "count-step": countStep(); break;
@@ -832,7 +1052,7 @@ if (typeof document !== "undefined") {
         if (session.view === "game" && session.subject === "english" && currentQuestion().options.includes(button.dataset.value)) playEnglishChoice(button.dataset.value);
         break;
       case "reveal-choices":
-        if (session.view === "game" && session.recall && !session.recallReady) { session.recallReady = true; render(); }
+        if (session.view === "game" && thinkingFirst()) { session.recallReady = true; render(); }
         break;
       case "next": next(); break;
       case "recall": startRecall(); break;
